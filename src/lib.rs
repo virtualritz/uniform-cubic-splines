@@ -2,15 +2,10 @@
 use core::marker::PhantomData;
 use core::ops::Add;
 use core::ops::Mul;
-/*use num::{
-    cast::AsPrimitive,
-    Float,
-    FromPrimitive,
-};*/
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
     float::Float,
-    identities::{Zero, One}
+    identities::{One, Zero},
 };
 use roots::{find_root_brent, FloatType, SimpleConvergency};
 
@@ -31,7 +26,6 @@ impl Basis<f32> for CatmullRom {
     ];
 }
 
-
 impl Basis<f64> for CatmullRom {
     const STEP: usize = 1;
     const MATRIX: [[f64; 4]; 4] = [
@@ -41,7 +35,6 @@ impl Basis<f64> for CatmullRom {
         [0.0 / 2.0, 2.0 / 2.0, 0.0 / 2.0, 0.0 / 2.0],
     ];
 }
-
 
 pub struct Bezier;
 
@@ -69,11 +62,10 @@ where
         U: Add<Output = U> + Copy + Mul<T, Output = U> + Zero,
     {
         let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
-        let mut x: T = x.clamp(num_traits::Zero::zero(), num_traits::One::one()) * T::from_usize(number_of_segments).unwrap();
 
-        //let seg_x: T = x;
-        //let segment = (seg_x.as_()).clamp(0, number_of_segments - 1);
-        // TRYME: can we just x.floor() here?
+        let mut x: T = x.clamp(num_traits::Zero::zero(), num_traits::One::one())
+            * T::from_usize(number_of_segments).unwrap();
+
         let segment = x.floor();
 
         // x is the position along the segment.
@@ -131,36 +123,25 @@ where
             max_iter: 32,
         };
 
-        match find_root_brent(y, num_traits::Zero::zero(), &spline_function, &mut convergency) {
-            Ok(x) => {
-                Some(x)
-            }
-            Err(_) => None
+        match find_root_brent(
+            y,
+            num_traits::Zero::zero(),
+            &spline_function,
+            &mut convergency,
+        ) {
+            Ok(x) => Some(x),
+            Err(_) => None,
         }
     }
 }
 
-/*
-use ultraviolet as uv;
-
-type Vec2 = uv::Vec2;
-
-impl num::Zero for Vec2 {
-    fn zero() -> Self {
-        Vec2::new(0., 0.)
-    }
-}*/
-
 #[test]
 
-    fn test () {
-        let spline = vec![
-            0.0,
-            0.4,
-            0.5,
-            0.9,
-            1.0,
-        ];
+fn test() {
+    let spline = vec![0.0, 0.4, 0.5, 0.9, 1.0];
 
-        println!("{:?}", Interpolation::<_, CatmullRom>::evaluate(0.3f64, &spline));
-    }
+    println!(
+        "{:?}",
+        Interpolation::<_, CatmullRom>::evaluate(0.3f64, &spline)
+    );
+}
