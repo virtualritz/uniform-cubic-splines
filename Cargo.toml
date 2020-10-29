@@ -3,9 +3,18 @@ name = "simple-spline"
 version = "0.1.0"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2018"
-
+readme = "README.md"
+keywords = ["splines", "curves", "graphics", "inversion", "cubic"]
+categories = ["mathematics", "graphics", "multimedia", "rendering"]
+license = "MIT OR Apache-2.0 OR Zlib"
+description = "Simple cubic spline evaluation and inversion."
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num = "0.3.0"
+num-traits = "0.2.12"
 roots = "0.0.6"
+ultraviolet = { version = "0.7.4", features = ["f64"] }
+
+
+[dev-dependencies]
+ordered-float = "2.0.0"
