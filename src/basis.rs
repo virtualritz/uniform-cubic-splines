@@ -3,11 +3,13 @@ use crate::*;
 /// A cubic spline basis.
 /// Some basis types require a particular number of knot values.
 ///
-/// `Bezier` splines require `4n+3` values.
+/// `Bezier` splines require *4×𝘯+3* values.
 ///
-/// `Hermite` splines require `4n+2` values.
+/// `Hermite` splines require *4×𝘯+2* values.
 ///
-/// `B-sppline`, `CatmullRom` and `Linear` splines may use any
+/// `Power` splines require *4×𝘯+4* values.
+///
+/// `B-spline`, `CatmullRom` and `Linear` splines may use any
 /// number of values with *n≥4*.
 pub trait Basis<T: Float> {
     const NAME: &'static str;
