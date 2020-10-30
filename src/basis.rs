@@ -16,11 +16,11 @@ pub trait Basis<T: Float> {
     const EXTRA_KNOTS: usize;
 }
 
-/// A *Catmull-Rom* spline basis. It require ≥4 values in the knot vector.
-pub struct CatmullRom;
+/// A *B-spline* basis. It require ≥4 values in the knot vector.
+pub struct BSpline;
 
-catmull_rom_basis!(f64);
-catmull_rom_basis!(f32);
+b_spline_basis!(f64);
+b_spline_basis!(f32);
 
 /// A *Bezie* spline basis. It require *4×𝘯+3* values in the knot vector.
 pub struct Bezier;
@@ -28,11 +28,11 @@ pub struct Bezier;
 bezier_basis!(f64);
 bezier_basis!(f32);
 
-/// A *B-spline* basis. It require ≥4 values in the knot vector.
-pub struct BSpline;
+/// A *Catmull-Rom* spline basis. It require ≥4 values in the knot vector.
+pub struct CatmullRom;
 
-b_spline_basis!(f64);
-b_spline_basis!(f32);
+catmull_rom_basis!(f64);
+catmull_rom_basis!(f32);
 
 /// A *Hermite* spline basis. It require *4×𝘯+2* values in the knot vector.
 pub struct Hermite;
@@ -40,7 +40,7 @@ pub struct Hermite;
 hermite_basis!(f64);
 hermite_basis!(f32);
 
-/// A *Linear* basis.
+/// A *Linear* basis. It require ≥4 values in the knot vector.
 ///
 /// To maintain consistency with the other spline types, `Linear`
 /// splines will ignore the first and last data value, interpolating
@@ -49,3 +49,9 @@ pub struct Linear;
 
 linear_basis!(f64);
 linear_basis!(f32);
+
+/// A *Power* basis. It require *4×𝘯+4* values in the knot vector.
+pub struct Power;
+
+power_basis!(f64);
+power_basis!(f32);
