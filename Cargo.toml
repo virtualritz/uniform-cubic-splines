@@ -13,3 +13,5 @@ repository = "https://github.com/virtualritz/simple-spline/"
 
 [dependencies]
 num-traits = "0.2.14"
+roots = "0.0.6"
+lerp = "0.3.0"

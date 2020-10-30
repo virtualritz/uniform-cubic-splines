@@ -1,4 +1,4 @@
-#![no_std]
+//#![no_std]
 /// Cubic spline interpolation.
 ///
 /// If you come from a background of Open or RenderMan shading language
@@ -17,6 +17,9 @@ use num_traits::{
 mod basis_macros;
 pub mod basis;
 use basis::*;
+
+mod invert;
+pub use invert::*;
 
 /// As `x` varies from `0` to `1`, this function returns the value
 /// of a cubic interpolation of uniformly spaced `knots`.

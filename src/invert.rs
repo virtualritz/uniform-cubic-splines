@@ -1,6 +1,8 @@
 use roots::{find_root_brent, FloatType, SimpleConvergency};
 use lerp::Lerp;
 
+use crate::*;
+
 /// Evaluate the inverse of a spline; i.e., solve for
 /// the x for which [`spline`]`(x) == y`.
 pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
@@ -114,11 +116,11 @@ where
             T::from_f64(number_of_segments_inverted * (s + 1) as f64).unwrap();
         if let Some(x) = invert(
             &spline_function,
-            &y,
-            &r0,
-            &r1,
+            y,
+            r0,
+            r1,
             32,
-            &T::from_f64(1.0e-6).unwrap(),
+            T::from_f64(1.0e-6).unwrap(),
         ) {
             return Some(x);
         }
@@ -128,24 +130,14 @@ where
     None
 }
 
-pub fn is_len_ok<B>(len: usize) -> bool
-where
-    B: Basis<f32>,
-{
-    if 0 == B::EXTRA_KNOTS {
-        4 <= len
-    } else {
-        4 + B::EXTRA_KNOTS <= len && 0 == (len - B::EXTRA_KNOTS) % 4
-    }
-}
-
+#[inline]
 fn invert<T>(
     function: &dyn Fn(T) -> T,
-    y: &T,
-    x_min: &T,
-    x_max: &T,
+    y: T,
+    x_min: T,
+    x_max: T,
     max_iterations: usize,
-    epsilon: &T,
+    epsilon: T,
 ) -> Option<T>
 where
     T: AsPrimitive<usize>
@@ -160,21 +152,21 @@ where
     // hasn't converged after 3/4 of the maximum number of iterations.
     // See, e.g., Numerical Recipes for the basic ideas behind both
     // methods.
-    let mut v0 = function(*x_min);
-    let mut v1 = function(*x_max);
+    let mut v0 = function(x_min);
+    let mut v1 = function(x_max);
 
-    let mut x = *x_min;
+    let mut x = x_min;
     let increasing = v0 < v1;
 
     let vmin = if increasing { v0 } else { v1 };
     let vmax = if increasing { v1 } else { v0 };
 
-    if !(*y >= vmin && *y <= vmax) {
+    if !(y >= vmin && y <= vmax) {
         return None;
     }
 
     // Already close enough.
-    if Float::abs(v0 - v1) < *epsilon {
+    if Float::abs(v0 - v1) < epsilon {
         println!("Bye");
         return Some(x);
     }
@@ -182,15 +174,15 @@ where
     // How many times to try regula falsi.
     let rfiters = (3 * max_iterations) / 4;
 
-    let mut x_min = *x_min;
-    let mut x_max = *x_max;
+    let mut x_min = x_min;
+    let mut x_max = x_max;
 
     for iters in 0..max_iterations {
         // Interpolation factor.
         let mut t: T;
         if iters < rfiters {
             // Regula falsi.
-            t = (*y - v0) / (v1 - v0);
+            t = (y - v0) / (v1 - v0);
             if t <= num_traits::Zero::zero() || t >= num_traits::One::one() {
                 // RF convergence failure -- bisect instead.
                 t = T::from_f64(0.5).unwrap() * num_traits::One::one();
@@ -201,14 +193,14 @@ where
         }
         x = t.lerp(x_min, x_max);
         let v = function(x);
-        if (v < *y) == increasing {
+        if (v < y) == increasing {
             x_min = x;
             v0 = v;
         } else {
             x_max = x;
             v1 = v;
         }
-        if Float::abs(x_max - x_min) < *epsilon || Float::abs(v - *y) < *epsilon
+        if Float::abs(x_max - x_min) < epsilon || Float::abs(v - y) < epsilon
         {
             return Some(x); // converged
         }
@@ -221,7 +213,7 @@ where
 fn test() {
     let knots = vec![-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
 
-    assert!(is_len_ok::<CatmullRom>(knots.len()));
+    assert!(crate::is_len_ok::<CatmullRom>(knots.len()));
     assert!(0.4 == spline::<CatmullRom, _, _>(0.25f64, &knots));
 
     let knots = [0.0, 0.0, 0.5, 0.5];
