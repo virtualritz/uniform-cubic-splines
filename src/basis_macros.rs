@@ -77,3 +77,19 @@ macro_rules! linear_basis {
         }
     };
 }
+
+macro_rules! power_basis {
+    ($type:ident) => {
+        impl Basis<$type> for Power {
+            const NAME: &'static str = "Power";
+            const STEP: usize = 4;
+            const MATRIX: [[$type; 4]; 4] = [
+                [1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0, 1.0],
+            ];
+            const EXTRA_KNOTS: usize = 4;
+        }
+    };
+}

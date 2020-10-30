@@ -1,11 +1,12 @@
 #![no_std]
-/// Cubic spline interpolation.
-///
-/// If you come from a background of Open or RenderMan shading language
-/// this crate should feel like home.
-///
-/// The code is a Rust port of the resp. implementation found in the
-/// Open Shading Language C++ source.
+//! Cubic spline interpolation.
+//!
+//! If you come from a background of shading languages used in offline
+//! rendering this crate should feel like home.
+//!
+//! The code is a Rust port of the resp. implementation found in the
+//! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
+//! C++ source.
 use core::ops::{Add, Mul};
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
@@ -26,7 +27,7 @@ use basis::*;
 /// parameter has certain constraints.
 /// # Panics
 /// If the `knots` slice has the wrong length this will panic when
-/// the code is build with debug assertion enabled and produces
+/// the code is built with debug assertion enabled and produces
 /// undefined behvior in a release build.
 ///
 /// Use the [`is_len_ok()`] helper to check if a
@@ -88,14 +89,27 @@ where
     // Get a slice for the segment.
     let cv = &knots[start..start + 4];
 
-    let mut tk = (0..4)
-        .map(|knot| {
-            cv.iter()
-                .zip(B::MATRIX[knot].iter())
-                .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
-        });
+    let mut tk = (0..4).map(|knot| {
+        cv.iter()
+            .zip(B::MATRIX[knot].iter())
+            .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
+    });
 
-    ((tk.next().unwrap() * x + tk.next().unwrap()) * x + tk.next().unwrap()) * x + tk.next().unwrap()
+    ((tk.next().unwrap() * x + tk.next().unwrap()) * x + tk.next().unwrap()) * x
+        + tk.next().unwrap()
+}
+
+/// Returns `true` if a `knots` slice you want to feed into
+/// [`spline()`] has the correct length for the choosen [`Basis`].
+pub fn is_len_ok<B>(len: usize) -> bool
+where
+    B: Basis<f32>,
+{
+    if 0 == B::EXTRA_KNOTS {
+        4 <= len
+    } else {
+        4 + B::EXTRA_KNOTS <= len && 0 == (len - B::EXTRA_KNOTS) % 4
+    }
 }
 
 #[inline]

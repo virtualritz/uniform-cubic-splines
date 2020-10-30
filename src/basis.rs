@@ -49,3 +49,9 @@ pub struct Linear;
 
 linear_basis!(f64);
 linear_basis!(f32);
+
+/// A *Power* basis. It require *4×𝘯+4* values in the knot vector.
+pub struct Power;
+
+power_basis!(f64);
+power_basis!(f32);
