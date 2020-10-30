@@ -6,10 +6,7 @@
 ///
 /// The code is a Rust port of the resp. implementation found in the
 /// Open Shading Language C++ source.
-use core::{
-    mem::MaybeUninit,
-    ops::{Add, Mul},
-};
+use core::ops::{Add, Mul};
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
     float::Float,
@@ -91,16 +88,14 @@ where
     // Get a slice for the segment.
     let cv = &knots[start..start + 4];
 
-    let mut tk = unsafe { MaybeUninit::<[U; 4]>::uninit().assume_init() };
+    let mut tk = (0..4)
+        .map(|knot| {
+            cv.iter()
+                .zip(B::MATRIX[knot].iter())
+                .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
+        });
 
-    for knot in 0..4 {
-        tk[knot] = cv[0] * B::MATRIX[knot][0]
-            + cv[1] * B::MATRIX[knot][1]
-            + cv[2] * B::MATRIX[knot][2]
-            + cv[3] * B::MATRIX[knot][3];
-    }
-
-    ((tk[0] * x + tk[1]) * x + tk[2]) * x + tk[3]
+    ((tk.next().unwrap() * x + tk.next().unwrap()) * x + tk.next().unwrap()) * x + tk.next().unwrap()
 }
 
 #[inline]
