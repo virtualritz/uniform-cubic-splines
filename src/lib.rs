@@ -1,147 +1,117 @@
-#![feature(clamp)]
-use core::marker::PhantomData;
-use core::ops::Add;
-use core::ops::Mul;
+#![no_std]
+/// Cubic spline interpolation.
+///
+/// If you come from a background of Open or RenderMan shading language
+/// this crate should feel like home.
+///
+/// The code is a Rust port of the resp. implementation found in the
+/// Open Shading Language C++ source.
+use core::{
+    mem::MaybeUninit,
+    ops::{Add, Mul},
+};
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
     float::Float,
     identities::{One, Zero},
 };
-use roots::{find_root_brent, FloatType, SimpleConvergency};
 
-pub trait Basis<T: Float> {
-    const STEP: usize;
-    const MATRIX: [[T; 4]; 4];
-}
+#[macro_use]
+mod basis_macros;
+pub mod basis;
+use basis::*;
 
-pub struct CatmullRom;
-
-impl Basis<f32> for CatmullRom {
-    const STEP: usize = 1;
-    const MATRIX: [[f32; 4]; 4] = [
-        [-1.0 / 2.0, 3.0 / 2.0, -3.0 / 2.0, 1.0 / 2.0],
-        [2.0 / 2.0, -5.0 / 2.0, 4.0 / 2.0, -1.0 / 2.0],
-        [-1.0 / 2.0, 0.0 / 2.0, 1.0 / 2.0, 0.0 / 2.0],
-        [0.0 / 2.0, 2.0 / 2.0, 0.0 / 2.0, 0.0 / 2.0],
-    ];
-}
-
-impl Basis<f64> for CatmullRom {
-    const STEP: usize = 1;
-    const MATRIX: [[f64; 4]; 4] = [
-        [-1.0 / 2.0, 3.0 / 2.0, -3.0 / 2.0, 1.0 / 2.0],
-        [2.0 / 2.0, -5.0 / 2.0, 4.0 / 2.0, -1.0 / 2.0],
-        [-1.0 / 2.0, 0.0 / 2.0, 1.0 / 2.0, 0.0 / 2.0],
-        [0.0 / 2.0, 2.0 / 2.0, 0.0 / 2.0, 0.0 / 2.0],
-    ];
-}
-
-pub struct Bezier;
-
-impl Basis<f32> for Bezier {
-    const STEP: usize = 3;
-    const MATRIX: [[f32; 4]; 4] = [
-        [-1.0, 3.0, -3.0, 1.0],
-        [3.0, -6.0, 3.0, 0.0],
-        [-3.0, 3.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0],
-    ];
-}
-
-pub struct Interpolation<T: Float, BASIS: Basis<T>> {
-    _marker: PhantomData<(T, BASIS)>,
-}
-
-impl<T, B> Interpolation<T, B>
+/// As `x` varies from `0` to `1`, this function returns the value
+/// of a cubic interpolation of uniformly spaced `knots`.
+/// The input value `x` will be clamped to the range `[0, 1]`.
+///
+/// Depending on the choosen [`Basis`] the length of the `knots`
+/// parameter has certain constraints.
+/// # Panics
+/// If the `knots` slice has the wrong length this will panic when
+/// the code is build with debug assertion enabled and produces
+/// undefined behvior in a release build.
+///
+/// Use the [`is_len_ok()`] helper to check if a
+/// knot slice you want to feed to this function has the correct
+/// length.
+/// # Examples
+/// ```
+/// use simple_spline::{spline, basis::CatmullRom};
+///
+/// //                 0.0  0.25 0.5  0.75 1.0
+/// let knots = [-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
+///
+/// assert!(spline::<CatmullRom, _, _>(0.25f64, &knots) == 0.4);
+/// ```
+pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
 where
-    T: AsPrimitive<usize> + FloatType + Float + FromPrimitive + Ord + One + Zero,
     B: Basis<T>,
+    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+    U: Add<Output = U> + Copy + Mul<T, Output = U> + Zero,
 {
-    pub fn evaluate<U>(x: T, knots: &Vec<U>) -> U
-    where
-        U: Add<Output = U> + Copy + Mul<T, Output = U> + Zero,
+    // UX
+    #[cfg(debug_assertions)]
+    if knots.len() < 4 + B::EXTRA_KNOTS {
+        panic!(
+            "{} curve must have at least {} knots. Found: {}.",
+            B::NAME,
+            4 + B::EXTRA_KNOTS,
+            knots.len()
+        );
+    } else if (B::EXTRA_KNOTS != 0) && ((knots.len() - B::EXTRA_KNOTS) % 4 == 0)
     {
-        let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
-
-        let mut x: T = x.clamp(num_traits::Zero::zero(), num_traits::One::one())
-            * T::from_usize(number_of_segments).unwrap();
-
-        let segment = x.floor();
-
-        // x is the position along the segment.
-        x = x - segment;
-        let start: usize = segment.as_() * B::STEP;
-
-        // Get a slice for the segment.
-        let cv = &knots[start..start + 4];
-
-        let tk = (0..4)
-            .map(|knot| {
-                cv.iter()
-                    .zip(B::MATRIX[knot].iter())
-                    .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
-            })
-            .collect::<Vec<U>>();
-
-        ((tk[0] * x + tk[1]) * x + tk[2]) * x + tk[3]
+        panic!(
+            "{} curve must have 4×𝘯+{} knots. Found: {}.",
+            B::NAME,
+            B::EXTRA_KNOTS,
+            knots.len()
+        );
     }
 
-    /// Evaluate the inverse of a spline; i.e., solve for
-    /// the x for which `evaluate(x)` == y.
-    pub fn evaluate_inverse<U>(y: T, knots: &Vec<T>) -> Option<T> {
-        // Account for out-of-range inputs;
-        // just clamp to the values we have.
-        let low_index: usize = if B::STEP == 1 { 1 } else { 0 };
+    let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
 
-        let high_index = if B::STEP == 1 {
-            knots.len() - 2
-        } else {
-            knots.len() - 1
-        };
+    let mut x = x;
+    x = *clamp(&mut x, num_traits::Zero::zero(), num_traits::One::one())
+        * T::from_usize(number_of_segments).unwrap();
 
-        // If increasing ...
-        if knots[1] < knots[knots.len() - 2] {
-            if y <= knots[low_index] {
-                return Some(num_traits::Zero::zero());
-            }
-            if y >= knots[high_index] {
-                return Some(num_traits::One::one());
-            }
-        } else {
-            if y >= knots[low_index] {
-                return Some(num_traits::Zero::zero());
-            }
-            if y <= knots[high_index] {
-                return Some(num_traits::One::one());
-            }
-        }
+    let segment = x.floor();
 
-        let spline_function = |x| Self::evaluate(x, knots);
+    // x is the position along the segment.
+    x = x - segment;
 
-        let mut convergency = SimpleConvergency {
-            eps: T::from_f64(1e-6).unwrap(),
-            max_iter: 32,
-        };
-
-        match find_root_brent(
-            y,
-            num_traits::Zero::zero(),
-            &spline_function,
-            &mut convergency,
-        ) {
-            Ok(x) => Some(x),
-            Err(_) => None,
-        }
+    let mut segment: usize = segment.as_();
+    let segment_bound = number_of_segments - 1;
+    if segment > segment_bound {
+        segment = segment_bound;
     }
+
+    let start = segment * B::STEP;
+
+    // Get a slice for the segment.
+    let cv = &knots[start..start + 4];
+
+    let mut tk = unsafe { MaybeUninit::<[U; 4]>::uninit().assume_init() };
+
+    for knot in 0..4 {
+        tk[knot] = cv[0] * B::MATRIX[knot][0]
+            + cv[1] * B::MATRIX[knot][1]
+            + cv[2] * B::MATRIX[knot][2]
+            + cv[3] * B::MATRIX[knot][3];
+    }
+
+    ((tk[0] * x + tk[1]) * x + tk[2]) * x + tk[3]
 }
 
-#[test]
-
-fn test() {
-    let spline = vec![0.0, 0.4, 0.5, 0.9, 1.0];
-
-    println!(
-        "{:?}",
-        Interpolation::<_, CatmullRom>::evaluate(0.3f64, &spline)
-    );
+#[inline]
+fn clamp<'a, T>(value: &'a mut T, min: T, max: T) -> &'a T
+where
+    T: PartialOrd,
+{
+    if *value < min {
+        *value = min;
+    } else if *value > max {
+        *value = max;
+    }
+    value
 }

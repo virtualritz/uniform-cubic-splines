@@ -1,0 +1,79 @@
+macro_rules! catmull_rom_basis {
+    ($type:ident) => {
+        impl Basis<$type> for CatmullRom {
+            const NAME: &'static str = "CatmullRom";
+            const STEP: usize = 1;
+            const MATRIX: [[$type; 4]; 4] = [
+                [-1.0 / 2.0, 3.0 / 2.0, -3.0 / 2.0, 1.0 / 2.0],
+                [2.0 / 2.0, -5.0 / 2.0, 4.0 / 2.0, -1.0 / 2.0],
+                [-1.0 / 2.0, 0.0 / 2.0, 1.0 / 2.0, 0.0 / 2.0],
+                [0.0 / 2.0, 2.0 / 2.0, 0.0 / 2.0, 0.0 / 2.0],
+            ];
+            const EXTRA_KNOTS: usize = 0;
+        }
+    };
+}
+
+macro_rules! bezier_basis {
+    ($type:ident) => {
+        impl Basis<$type> for Bezier {
+            const NAME: &'static str = "Bezier";
+            const STEP: usize = 3;
+            const MATRIX: [[$type; 4]; 4] = [
+                [-1.0, 3.0, -3.0, 1.0],
+                [3.0, -6.0, 3.0, 0.0],
+                [-3.0, 3.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0, 0.0],
+            ];
+            const EXTRA_KNOTS: usize = 3;
+        }
+    };
+}
+
+macro_rules! b_spline_basis {
+    ($type:ident) => {
+        impl Basis<$type> for BSpline {
+            const NAME: &'static str = "B-spline";
+            const STEP: usize = 1;
+            const MATRIX: [[$type; 4]; 4] = [
+                [-1.0 / 6.0, 3.0 / 6.0, -3.0 / 6.0, 1.0 / 6.0],
+                [3.0 / 6.0, -6.0 / 6.0, 3.0 / 6.0, 0.0 / 6.0],
+                [-3.0 / 6.0, 0.0 / 6.0, 3.0 / 6.0, 0.0 / 6.0],
+                [1.0 / 6.0, 4.0 / 6.0, 1.0 / 6.0, 0.0 / 6.0],
+            ];
+            const EXTRA_KNOTS: usize = 0;
+        }
+    };
+}
+
+macro_rules! hermite_basis {
+    ($type:ident) => {
+        impl Basis<$type> for Hermite {
+            const NAME: &'static str = "Hermite";
+            const STEP: usize = 2;
+            const MATRIX: [[$type; 4]; 4] = [
+                [2., 1., -2., 1.],
+                [-3., -2., 3., -1.],
+                [0., 1., 0., 0.],
+                [1., 0., 0., 0.],
+            ];
+            const EXTRA_KNOTS: usize = 2;
+        }
+    };
+}
+
+macro_rules! linear_basis {
+    ($type:ident) => {
+        impl Basis<$type> for Linear {
+            const NAME: &'static str = "Linear";
+            const STEP: usize = 1;
+            const MATRIX: [[$type; 4]; 4] = [
+                [0., 0., 0., 0.],
+                [0., 0., 0., 0.],
+                [0., -1., 1., 0.],
+                [0., 1., 0., 0.],
+            ];
+            const EXTRA_KNOTS: usize = 0;
+        }
+    };
+}
