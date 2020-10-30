@@ -3,10 +3,10 @@
 //! Uniform cubic spline interpolation & inversion.
 //!
 //! This crate supports the following types of splines:
-//! * B-spline
-//! * Bezier
-//! * Catmull-Rom
-//! * Hermite
+//! * [B-spline](https://en.wikipedia.org/wiki/B-spline)
+//! * [Bezier](https://en.wikipedia.org/wiki/Composite_B%C3%A9zier_curve)
+//! * [Catmull-Rom](https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Catmull%E2%80%93Rom_spline)
+//! * [Hermite](https://en.wikipedia.org/wiki/Cubic_Hermite_spline)
 //! * Linear
 //! * Power
 //!
