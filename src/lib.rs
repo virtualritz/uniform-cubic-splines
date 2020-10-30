@@ -78,7 +78,7 @@ pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
 where
     B: Basis<T>,
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
-    U: Add<Output = U> + Copy + Mul<T, Output = U> + One + Zero,
+    U: Add<Output = U> + Copy + Mul<T, Output = U> + Zero,
 {
     // UX
     #[cfg(debug_assertions)]
@@ -315,6 +315,4 @@ fn test() {
 
     assert!(is_len_ok::<CatmullRom>(knots0.len()));
     assert!(0.4 == spline::<CatmullRom, _, _>(0.25f64, &knots0));
-
-
 }
