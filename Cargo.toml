@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -8,8 +8,8 @@ keywords = ["splines", "curves", "graphics", "inversion", "cubic"]
 categories = ["mathematics", "graphics", "multimedia", "no-std"]
 license = "MIT OR Apache-2.0 OR Zlib"
 description = "Simple uniform cubic spline evaluation and inversion."
-documentation = "https://docs.rs/simple-spline/"
-repository = "https://github.com/virtualritz/simple-spline/"
+documentation = "https://docs.rs/uniform-cubic-splines/"
+repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
 [dependencies]
 num-traits = "0.2.14"
