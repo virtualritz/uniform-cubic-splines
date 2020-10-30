@@ -7,8 +7,9 @@ readme = "README.md"
 keywords = ["splines", "curves", "graphics", "inversion", "cubic"]
 categories = ["mathematics", "graphics", "multimedia", "no-std"]
 license = "MIT OR Apache-2.0 OR Zlib"
-description = "Simple cubic spline evaluation and inversion."
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Simple cubic spline evaluation."
+documentation = "https://docs.rs/simple-spline/"
+repository = "https://github.com/virtualritz/simple-spline/"
 
 [dependencies]
-num-traits = "0.2.12"
+num-traits = "0.2.14"
