@@ -28,7 +28,7 @@
 //! // We want to evaluate the spline at knot value 0.3.
 //! let x = 0.3;
 //!
-//! // The first an last points are never interpolated.
+//! // The first and last points are never interpolated.
 //! let values = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //! let knots =  [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 //!
