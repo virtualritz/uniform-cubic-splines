@@ -28,8 +28,9 @@
 //! // We want to evaluate the spline at knot value 0.3.
 //! let x = 0.3;
 //!
-//! let values = [0.0, 0.0, 1.3, 4.2, 6.4, 6.4];
-//! let knots = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
+//! // The first an last points are never interpolated.
+//! let values = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
+//! let knots =  [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 //!
 //! let v = spline_inverse::<Linear, _>(x, &knots).unwrap();
 //! let y = spline::<CatmullRom, _, _>(v, &values);
@@ -119,10 +120,10 @@ where
     // Get a slice for the segment.
     let cv = &knots[start..start + 4];
 
-    (0..4)
-        .map(|knot| {
+    B::MATRIX.iter()
+        .map(|row| {
             cv.iter()
-                .zip(B::MATRIX[knot].iter())
+                .zip(row.iter())
                 .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
         })
         .fold(num_traits::Zero::zero(), |acc, elem| acc * x + elem)
