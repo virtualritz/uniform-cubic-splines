@@ -1,5 +1,8 @@
 ## Uniform Cubic Spline Interpolation & Inversion
 
+[![Documentation](https://docs.rs/uniform-cubic-splines/badge.svg)](https://docs.rs/uniform-cubic-splines/)
+[![Crate](https://img.shields.io/crates/v/uniform-cubic-splines.svg)](https://crates.io/crates/uniform-cubic-splines)
+
 This crate supports the following types of splines:
 * [B-spline](https://en.wikipedia.org/wiki/B-spline)
 * [Bezier](https://en.wikipedia.org/wiki/Composite_B%C3%A9zier_curve)
@@ -8,12 +11,15 @@ This crate supports the following types of splines:
 * Linear
 * Power
 
-If you come from a background of shading languages used in offline
-rendering this crate should feel like home.
+![UI with a 1D Catmull-Rom spline with non-uniform knot spacing and
+knot multiplicity using this crate for interpolation (drawn using
+`tiny-skia`).](spline_ui.png)
 
-The code is a Rust port of the resp. implementation found in the
-[Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
-C++ source.
+The crate uses generics to allow interpolation of any type for
+which certain traits are defined.
+
+I.e. you can use this crate to interpolate splines in 1D, 2D, 3D,
+etc.
 
 # Example
 Using a combination of `spline()` and `spline_inverse()` it is
@@ -27,11 +33,20 @@ use uniform_cubic_splines::{
 let x = 0.3;
 
 // The first and last points are never interpolated.
-let knots =  [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
-let values = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
+let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
+let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 
-let v = spline_inverse::<CatmullRom, _>(x, &knots).unwrap();
-let y = spline::<CatmullRom, _, _>(v, &values);
+let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
+let y = spline::<CatmullRom, _, _>(v, &knots);
 
 assert!(y - 4.2 < 1e-6);
 ```
+
+# Background
+The code is a Rust port of the implementation found in the [Open
+Shading Language](https://github.com/imageworks/OpenShadingLanguage)
+C++ source.
+
+If you come from a background of computer graphics/shading
+languages used in offline rendering this crate should feel like
+home.
