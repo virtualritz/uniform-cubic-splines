@@ -11,15 +11,15 @@ This crate supports the following types of splines:
 * Linear
 * Power
 
-![UI with a 1D Catmull-Rom spline with non-uniform knot spacing and
+![](spline_ui.png)
+*UI with a 1D Catmull-Rom spline with non-uniform knot spacing and
 knot multiplicity using this crate for interpolation (drawn using
-`tiny-skia`).](spline_ui.png)
+`tiny-skia`).*
 
-The crate uses generics to allow interpolation of any type for
-which certain traits are defined.
+The crate uses generics to allow interpolation of any type for which
+certain traits are defined.
 
-I.e. you can use this crate to interpolate splines in 1D, 2D, 3D,
-etc.
+I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 
 # Example
 Using a combination of `spline()` and `spline_inverse()` it is
