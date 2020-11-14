@@ -10,16 +10,25 @@
 //! * Linear
 //! * Power
 //!
-//! If you come from a background of shading languages used in offline
-//! rendering this crate should feel like home.
+//! The crate uses generics to allow interpolation of any type for
+//! which certain traits are defined.
 //!
-//! The code is a Rust port of the resp. implementation found in the
-//! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
-//! C++ source.
+//! I.e. you can use this crate to interpolate splines in 1D, 2D, 3D,
+//! etc.
 //!
-//! # Example
+//! ## Cargo Features
+//! The [`spline_inverse()`] code will check if the knot vector is
+//! monotonic in `debug` builds. This only works in `nightly` and is
+//! behind a feature flag thus.
+//! ```
+//! [dependencies]
+//! uniform-cubic-splines = { version = "0.1.2", features = [ "unstable" ] }
+//! ```
+//! The crate does not depend on the standard library (i.e. is marked
+//! `no_std`).
+//! ## Example
 //! Using a combination of [`spline()`] and [`spline_inverse()`] it is
-//! possible to compute a full spline-with-nonuniform-abscissæ:
+//! possible to compute a full spline-with-non-uniform-abscissæ:
 //! ```
 //! use uniform_cubic_splines::{
 //!     spline, spline_inverse, basis::CatmullRom
@@ -29,14 +38,22 @@
 //! let x = 0.3;
 //!
 //! // The first and last points are never interpolated.
-//! let knots =  [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
-//! let values = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
+//! let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
+//! let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //!
-//! let v = spline_inverse::<CatmullRom, _>(x, &knots).unwrap();
-//! let y = spline::<CatmullRom, _, _>(v, &values);
+//! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
+//! let y = spline::<CatmullRom, _, _>(v, &knots);
 //!
 //! assert!(y - 4.2 < 1e-6);
 //! ```
+//! ## Background
+//! The code is a Rust port of the resp. implementations found in the
+//! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
+//! C++ source.
+//!
+//! If you come from a background of computer graphics/shading
+//! languages used in offline rendering this crate should feel like
+//! home.
 use core::ops::{Add, Mul};
 use lerp::Lerp;
 use num_traits::{
@@ -120,7 +137,8 @@ where
     // Get a slice for the segment.
     let cv = &knots[start..start + 4];
 
-    B::MATRIX.iter()
+    B::MATRIX
+        .iter()
         .map(|row| {
             cv.iter()
                 .zip(row.iter())

@@ -12,6 +12,7 @@ This crate supports the following types of splines:
 * Power
 
 ![UI with 1D Catmull-Rom spline](spline_ui.png)
+
 *UI with a 1D Catmull-Rom spline with non-uniform knot spacing and
 knot multiplicity using this crate for interpolation (drawn using
 `tiny-skia`).*
