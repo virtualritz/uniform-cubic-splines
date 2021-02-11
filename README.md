@@ -11,11 +11,11 @@ This crate supports the following types of splines:
 * Linear
 * Power
 
-![UI with 1D Catmull-Rom spline](spline_ui.png)
+![Curve widget with 1D Catmull-Rom spline](spline_ui.png)
 
-*UI with a 1D Catmull-Rom spline with non-uniform knot spacing and
-knot multiplicity using this crate for interpolation (drawn using
-`tiny-skia`).*
+*Curve widget with a 1D Catmull-Rom spline with non-uniform knot
+spacing and knot multiplicity using this crate for interpolation
+(drawn using `tiny-skia`).*
 
 The crate uses generics to allow interpolation of any type for which
 certain traits are defined.
