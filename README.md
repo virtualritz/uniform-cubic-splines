@@ -22,6 +22,10 @@ certain traits are defined.
 
 I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 
+```toml
+[dependencies]
+uniform-cubic-splines = { version = "0.1.4" }
+```
 # Example
 Using a combination of `spline()` and `spline_inverse()` it is
 possible to compute a full spline-with-nonuniform-abscissæ:

@@ -20,9 +20,9 @@
 //! The [`spline_inverse()`] code will check if the knot vector is
 //! monotonic in `debug` builds. This only works in `nightly` and is
 //! behind a feature flag thus.
-//! ```
+//! ```toml
 //! [dependencies]
-//! uniform-cubic-splines = { version = "0.1.2", features = [ "unstable" ] }
+//! uniform-cubic-splines = { version = "0.1.4", features = [ "unstable" ] }
 //! ```
 //! The crate does not depend on the standard library (i.e. is marked
 //! `no_std`).
