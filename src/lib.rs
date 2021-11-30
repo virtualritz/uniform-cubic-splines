@@ -80,9 +80,8 @@ use basis::*;
 /// If the `knots` slice has the wrong length this will panic when
 /// the code is built with debug assertion enabled.
 ///
-/// Use the [`is_len_ok()`] helper to check if a
-/// knot slice you want to feed to this function has the correct
-/// length.
+/// Use the [`is_len_ok()`] helper to check if a knot slice you want
+/// to feed to this function has the correct length.
 /// # Examples
 /// ```
 /// use uniform_cubic_splines::{spline, basis::CatmullRom};
