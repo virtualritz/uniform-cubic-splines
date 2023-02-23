@@ -33,7 +33,7 @@ macro_rules! bezier_basis {
 macro_rules! catmull_rom_basis {
     ($type:ident) => {
         impl Basis<$type> for CatmullRom {
-            const NAME: &'static str = "CatmullRom";
+            const NAME: &'static str = "Catmull-Rom";
             const STEP: usize = 1;
             const MATRIX: [[$type; 4]; 4] = [
                 [-1.0 / 2.0, 3.0 / 2.0, -3.0 / 2.0, 1.0 / 2.0],
@@ -90,6 +90,22 @@ macro_rules! power_basis {
                 [0.0, 0.0, 0.0, 1.0],
             ];
             const EXTRA_KNOTS: usize = 4;
+        }
+    };
+}
+
+macro_rules! _cardinal_basis {
+    ($type:ident, $t:expr) => {
+        impl Basis<$type> for CatmullRom {
+            const NAME: &'static str = "Cardinal";
+            const STEP: usize = 1;
+            const MATRIX: [[$type; 4]; 4] = [
+                [$t, 2.0 - $t, $t - 2, $t],
+                [2 * $t, $t - 3.0, 3 - 2 * $t, -$t],
+                [-$t, 0.0, $t, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+            ];
+            const EXTRA_KNOTS: usize = 0;
         }
     };
 }

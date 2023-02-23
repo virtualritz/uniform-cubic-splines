@@ -1,9 +1,12 @@
-## Uniform Cubic Spline Interpolation & Inversion
+# `uniform-cubic-splines`
+
+Uniform cubic spline interpolation & inversion.
 
 [![Documentation](https://docs.rs/uniform-cubic-splines/badge.svg)](https://docs.rs/uniform-cubic-splines/)
 [![Crate](https://img.shields.io/crates/v/uniform-cubic-splines.svg)](https://crates.io/crates/uniform-cubic-splines)
 
 This crate supports the following types of splines:
+
 * [B-spline](https://en.wikipedia.org/wiki/B-spline)
 * [Bezier](https://en.wikipedia.org/wiki/Composite_B%C3%A9zier_curve)
 * [Catmull-Rom](https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Catmull%E2%80%93Rom_spline)
@@ -24,11 +27,14 @@ I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 
 ```toml
 [dependencies]
-uniform-cubic-splines = { version = "0.1.4" }
+uniform-cubic-splines = { version = "0.1" }
 ```
-# Example
+
+## Example
+
 Using a combination of `spline()` and `spline_inverse()` it is
 possible to compute a full spline-with-nonuniform-abscissæ:
+
 ```rust
 use uniform_cubic_splines::{
     spline, spline_inverse, basis::CatmullRom
@@ -47,7 +53,16 @@ let y = spline::<CatmullRom, _, _>(v, &knots);
 assert!(y - 4.2 < 1e-6);
 ```
 
-# Background
+## Features
+
+* `is_sorted` -- The `spline_inverse()` code will check if the knot
+  vector is monotonic. This check can be made a lot faster if the `unstable`
+  feature is enabled.
+* `unstable` -- The `is_sorted` feature will requite a `nightly` toolchain.
+* `use_std` -- The `is_sorted` accelleration will be detected at runtime.
+
+## Background
+
 The code is a Rust port of the implementation found in the [Open
 Shading Language](https://github.com/imageworks/OpenShadingLanguage)
 C++ source.

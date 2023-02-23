@@ -1,5 +1,4 @@
-#![no_std]
-#![cfg_attr(feature = "unstable", feature(is_sorted))]
+#![cfg_attr(not(feature = "use_std"), no_std)]
 //! Uniform cubic spline interpolation & inversion.
 //!
 //! This crate supports the following types of splines:
@@ -17,18 +16,21 @@
 //! etc.
 //!
 //! ## Cargo Features
-//! The [`spline_inverse()`] code will check if the knot vector is
-//! monotonic in `debug` builds. This only works in `nightly` and is
-//! behind a feature flag thus.
-//! ```toml
-//! [dependencies]
-//! uniform-cubic-splines = { version = "0.1.4", features = [ "unstable" ] }
-//! ```
+//!
+//! * `is_sorted` -- The [`spline_inverse()`] code will check if the knot
+//!   vector is monotonic. This check can be made a lot faster if the
+//!   `unstable` feature is enabled.
+//! * `unstable` -- The `is_sorted` feature will requite a `nightly` toolchain.
+//! * `use_std` -- The `is_sorted` accelleration will be detected at runtime.
+//!
 //! The crate does not depend on the standard library (i.e. is marked
 //! `no_std`).
+//!
 //! ## Example
+//!
 //! Using a combination of [`spline()`] and [`spline_inverse()`] it is
 //! possible to compute a full spline-with-non-uniform-abscissæ:
+//!
 //! ```
 //! use uniform_cubic_splines::{
 //!     spline, spline_inverse, basis::CatmullRom
@@ -41,12 +43,14 @@
 //! let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 //! let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //!
-//! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
+//! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
 //! let y = spline::<CatmullRom, _, _>(v, &knots);
 //!
 //! assert!(y - 4.2 < 1e-6);
 //! ```
+//!
 //! ## Background
+//!
 //! The code is a Rust port of the resp. implementations found in the
 //! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
 //! C++ source.
@@ -55,6 +59,9 @@
 //! languages used in offline rendering this crate should feel like
 //! home.
 use core::ops::{Add, Mul};
+#[cfg(debug_assertions)]
+#[cfg(feature = "is_sorted")]
+use is_sorted::IsSorted;
 use lerp::Lerp;
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
@@ -76,13 +83,17 @@ use basis::*;
 ///
 /// If these constraints are not honored the code produces
 /// undefined behavior in a release build.
+///
 /// # Panics
+///
 /// If the `knots` slice has the wrong length this will panic when
 /// the code is built with debug assertion enabled.
 ///
 /// Use the [`is_len_ok()`] helper to check if a knot slice you want
 /// to feed to this function has the correct length.
+///
 /// # Examples
+///
 /// ```
 /// use uniform_cubic_splines::{spline, basis::CatmullRom};
 ///
@@ -149,30 +160,49 @@ where
 /// Computes the inverse of the [`spline()`] function.
 /// This returns the value `x` for which `spline(x)` would return `y`.
 ///
-/// Results are undefined if the `knots` do not specifiy a monotonic
-/// (only increasing or only decreasing) set of values.
+/// Results are undefined if the `knots` do not specifiy a monotonic (only
+/// increasing or only decreasing) set of values.
 ///
 /// If no solution can be found the function returns `None`.
 ///
+/// The underlying algorithm uses the
+/// [regular falsi](https://en.wikipedia.org/wiki/Regula_falsi) method to find
+/// the solution.
+///
+/// The `iterations` parameter controls the max. number of iterations of this
+/// this algorithm. If omitted, the default is `32`.
+///
+/// The `precision` parameter controls the cutoff precision that is used to
+/// determine when the result is a good enough approximation, even if the
+/// specified number of `iterations` was not reached yet. If omitted, the
+/// default is `1e-6`.
+///
 /// # Panics
-/// If the `"unstable"` feature is enabled this will panic when this
-/// is built with debug assertions and the `knots` are not monotonic.
+///
+/// If the `unstable` feature is enabled this will panic when this is built
+/// with debug assertions and the `knots` are not monotonic.
+///
 /// # Examples
+///
 /// ```
 /// use uniform_cubic_splines::{spline_inverse, basis::Linear};
 ///
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
-/// assert!(Some(0.5) == spline_inverse::<Linear, _>(0.25f64, &knots));
+/// assert!(Some(0.5) == spline_inverse::<Linear, _>(0.25f64, &knots, None, None));
 /// ```
-pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
+pub fn spline_inverse<B, T>(
+    y: T,
+    knots: &[T],
+    iterations: Option<usize>,
+    precision: Option<T>,
+) -> Option<T>
 where
     B: Basis<T>,
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
 {
-    #[cfg(debug_assertions)]
-    #[cfg(feature = "unstable")]
-    if !knots.is_sorted() {
+    #[cfg(feature = "is_sorted")]
+    if !IsSorted::is_sorted(&mut knots.iter()) {
         panic!("The knots array fed to spline_inverse() is not monotonic.");
     }
 
@@ -207,25 +237,29 @@ where
 
     let number_of_segments = (knots.len() - 4) / B::STEP + 1;
     let number_of_segments_inverted = 1.0 / number_of_segments as f64;
-    let mut r0 = num_traits::Zero::zero();
 
     // Search each interval.
+    let mut r0 = num_traits::Zero::zero();
+
     for s in 0..number_of_segments {
         let r1 =
             T::from_f64(number_of_segments_inverted * (s + 1) as f64).unwrap();
+
         if let Some(x) = invert(
             &spline_function,
             y,
             r0,
             r1,
-            32,
-            T::from_f64(1.0e-6).unwrap(),
+            iterations.unwrap_or(32),
+            precision.unwrap_or(T::from_f64(1.0e-6).unwrap()),
         ) {
             return Some(x);
         }
+
         // Start of next interval is end of this one.
         r0 = r1;
     }
+
     None
 }
 
@@ -325,12 +359,4 @@ where
     } else {
         value
     }
-}
-
-#[test]
-fn test() {
-    let knots0 = [-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
-
-    assert!(is_len_ok::<CatmullRom>(knots0.len()));
-    assert!(0.4 == spline::<CatmullRom, _, _>(0.25f64, &knots0));
 }

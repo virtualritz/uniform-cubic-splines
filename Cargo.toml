@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 readme = "README.md"
@@ -12,10 +12,18 @@ documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
 [dependencies]
-num-traits = "0.2.14"
+num-traits = "0.2.15"
 lerp = "0.4.0"
+# Enable the is_sorted check on spline_inverse()
+is_sorted = { version = "0.1.1", default-features = false, optional = true }
+
+[dev-dependencies]
+rand = "0.8.5"
 
 [features]
-default = []
-# Enable the is_sorted check on spline_inverse()
-unstable = []
+default = ["is_sorted"]
+unstable = ["is_sorted/unstable"]
+use_std = ["is_sorted/use_std"]
+
+[profile.bench]
+debug = true

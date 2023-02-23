@@ -3,11 +3,11 @@ use crate::*;
 /// A cubic spline basis.
 /// Some basis types require a particular number of knot values.
 ///
-/// `Bezier` splines require *4×𝘯+3* values.
+/// `Bezier` splines require *4×n+3* values.
 ///
-/// `Hermite` splines require *4×𝘯+2* values.
+/// `Hermite` splines require *4×n+2* values.
 ///
-/// `Power` splines require *4×𝘯+4* values.
+/// `Power` splines require *4×n+4* values.
 ///
 /// `B-spline`, `CatmullRom` and `Linear` splines may use any
 /// number of values with *n≥4*.
@@ -36,7 +36,7 @@ pub struct CatmullRom;
 catmull_rom_basis!(f64);
 catmull_rom_basis!(f32);
 
-/// A *Hermite* spline basis. It require *4×𝘯+2* values in the knot vector.
+/// A *Hermite* spline basis. It require *4×n+2* values in the knot vector.
 pub struct Hermite;
 
 hermite_basis!(f64);
@@ -52,7 +52,7 @@ pub struct Linear;
 linear_basis!(f64);
 linear_basis!(f32);
 
-/// A *Power* basis. It require *4×𝘯+4* values in the knot vector.
+/// A *Power* basis. It require *4×n+4* values in the knot vector.
 pub struct Power;
 
 power_basis!(f64);
