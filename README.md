@@ -37,7 +37,7 @@ possible to compute a full spline-with-nonuniform-abscissæ:
 
 ```rust
 use uniform_cubic_splines::{
-    spline, spline_inverse, basis::CatmullRom
+    basis::CatmullRom, spline_inverse, spline,
 };
 
 // We want to evaluate the spline at knot value 0.3.
@@ -47,7 +47,7 @@ let x = 0.3;
 let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 
-let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
+let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
 let y = spline::<CatmullRom, _, _>(v, &knots);
 
 assert!(y - 4.2 < 1e-6);
@@ -55,11 +55,14 @@ assert!(y - 4.2 < 1e-6);
 
 ## Features
 
-* `is_sorted` -- The `spline_inverse()` code will check if the knot
-  vector is monotonic. This check can be made a lot faster if the `unstable`
-  feature is enabled.
-* `unstable` -- The `is_sorted` feature will requite a `nightly` toolchain.
-* `use_std` -- The `is_sorted` accelleration will be detected at runtime.
+* `monotonic_check` -- The
+  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html) code will check if the
+  knot vector is monotonic. This check can be made a lot faster if the
+  `unstable` feature is enabled.
+* `unstable` -- The `monotonic_check` feature will be faster but requite a
+  `nightly` toolchain.
+* `use_std` -- The `monotonic_check` accelleration will be detected at
+  runtime.
 
 ## Background
 

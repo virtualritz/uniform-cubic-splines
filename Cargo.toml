@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 readme = "README.md"
@@ -21,9 +21,10 @@ is_sorted = { version = "0.1.1", default-features = false, optional = true }
 rand = "0.8.5"
 
 [features]
-default = ["is_sorted"]
+default = ["monotonic_check"]
 unstable = ["is_sorted/unstable"]
 use_std = ["is_sorted/use_std"]
+monotonic_check = ["is_sorted"]
 
 [profile.bench]
 debug = true

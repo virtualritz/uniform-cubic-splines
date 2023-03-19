@@ -17,11 +17,13 @@
 //!
 //! ## Cargo Features
 //!
-//! * `is_sorted` -- The [`spline_inverse()`] code will check if the knot
-//!   vector is monotonic. This check can be made a lot faster if the
-//!   `unstable` feature is enabled.
-//! * `unstable` -- The `is_sorted` feature will requite a `nightly` toolchain.
-//! * `use_std` -- The `is_sorted` accelleration will be detected at runtime.
+//! * `monotonic_check` -- The [`spline_inverse()`] code will check if the knot
+//!   vector is monotonic. This check can be made a lot faster if the `unstable`
+//!   feature is enabled.
+//! * `unstable` -- The `monotonic_check` feature will be faster but requite a
+//!   `nightly` toolchain.
+//! * `use_std` -- The `monotonic_check` accelleration will be detected at
+//!   runtime.
 //!
 //! The crate does not depend on the standard library (i.e. is marked
 //! `no_std`).
@@ -32,18 +34,17 @@
 //! possible to compute a full spline-with-non-uniform-abscissæ:
 //!
 //! ```
-//! use uniform_cubic_splines::{
-//!     spline, spline_inverse, basis::CatmullRom
-//! };
+//! use uniform_cubic_splines::{basis::CatmullRom, spline, spline_inverse};
 //!
 //! // We want to evaluate the spline at knot value 0.3.
 //! let x = 0.3;
 //!
 //! // The first and last points are never interpolated.
 //! let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
-//! let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
+//! let knots = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //!
-//! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
+//! let v =
+//!     spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
 //! let y = spline::<CatmullRom, _, _>(v, &knots);
 //!
 //! assert!(y - 4.2 < 1e-6);
@@ -95,7 +96,7 @@ use basis::*;
 /// # Examples
 ///
 /// ```
-/// use uniform_cubic_splines::{spline, basis::CatmullRom};
+/// use uniform_cubic_splines::{basis::CatmullRom, spline};
 ///
 /// //                 0.0  0.25 0.5  0.75 1.0
 /// let knots = [-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
@@ -179,17 +180,19 @@ where
 ///
 /// # Panics
 ///
-/// If the `unstable` feature is enabled this will panic when this is built
-/// with debug assertions and the `knots` are not monotonic.
+/// If the `monotonic_check` feature is enabled this will panic if the `knots`
+/// slice is not monotonic.
 ///
 /// # Examples
 ///
 /// ```
-/// use uniform_cubic_splines::{spline_inverse, basis::Linear};
+/// use uniform_cubic_splines::{basis::Linear, spline_inverse};
 ///
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
-/// assert!(Some(0.5) == spline_inverse::<Linear, _>(0.25f64, &knots, None, None));
+/// assert!(
+///     Some(0.5) == spline_inverse::<Linear, _>(0.25f64, &knots, None, None)
+/// );
 /// ```
 pub fn spline_inverse<B, T>(
     y: T,
@@ -201,7 +204,7 @@ where
     B: Basis<T>,
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
 {
-    #[cfg(feature = "is_sorted")]
+    #[cfg(feature = "monotonic_check")]
     if !IsSorted::is_sorted(&mut knots.iter()) {
         panic!("The knots array fed to spline_inverse() is not monotonic.");
     }
