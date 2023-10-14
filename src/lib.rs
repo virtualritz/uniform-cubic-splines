@@ -130,7 +130,7 @@ where
 
     let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
 
-    let mut x = clamp(x, num_traits::Zero::zero(), num_traits::One::one())
+    let mut x = clamp(x, Zero::zero(), One::one())
         * T::from_usize(number_of_segments).unwrap();
 
     let mut segment: usize = x.as_();
@@ -155,7 +155,7 @@ where
                 .zip(row.iter())
                 .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
         })
-        .fold(num_traits::Zero::zero(), |acc, elem| acc * x + elem)
+        .fold(Zero::zero(), |acc, elem| acc * x + elem)
 }
 
 /// Computes the inverse of the [`spline()`] function.
@@ -222,17 +222,17 @@ where
     // If increasing ...
     if knots[1] < knots[knots.len() - 2] {
         if y <= knots[low_index] {
-            return Some(num_traits::Zero::zero());
+            return Some(Zero::zero());
         }
         if y >= knots[high_index] {
-            return Some(num_traits::One::one());
+            return Some(One::one());
         }
     } else {
         if y >= knots[low_index] {
-            return Some(num_traits::Zero::zero());
+            return Some(Zero::zero());
         }
         if y <= knots[high_index] {
-            return Some(num_traits::One::one());
+            return Some(One::one());
         }
     }
 
