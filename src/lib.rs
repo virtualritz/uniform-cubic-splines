@@ -22,8 +22,7 @@
 //!   feature is enabled.
 //! * `unstable` -- The `monotonic_check` feature will be faster but requite a
 //!   `nightly` toolchain.
-//! * `use_std` -- The `monotonic_check` accelleration will be detected at
-//!   runtime.
+//! * `std` -- The `monotonic_check` accelleration will be detected at runtime.
 //!
 //! The crate does not depend on the standard library (i.e. is marked
 //! `no_std`).
@@ -61,7 +60,7 @@
 //! home.
 use core::ops::{Add, Mul};
 #[cfg(debug_assertions)]
-#[cfg(feature = "is_sorted")]
+#[cfg(feature = "monotonic_check")]
 use is_sorted::IsSorted;
 use lerp::Lerp;
 use num_traits::{
@@ -101,7 +100,7 @@ use basis::*;
 /// //                 0.0  0.25 0.5  0.75 1.0
 /// let knots = [-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
 ///
-/// assert!(0.4 == spline::<CatmullRom, _, _>(0.25f64, &knots));
+/// assert_eq!(0.4, spline::<CatmullRom, _, _>(0.25f64, &knots));
 /// ```
 pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
 where
@@ -190,8 +189,9 @@ where
 ///
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
-/// assert!(
-///     Some(0.5) == spline_inverse::<Linear, _>(0.25f64, &knots, None, None)
+/// assert_eq!(
+///     Some(0.5),
+///     spline_inverse::<Linear, _>(0.25f64, &knots, None, None)
 /// );
 /// ```
 pub fn spline_inverse<B, T>(

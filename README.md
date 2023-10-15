@@ -56,13 +56,12 @@ assert!(y - 4.2 < 1e-6);
 ## Features
 
 * `monotonic_check` -- The
-  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html) code will check if the
-  knot vector is monotonic. This check can be made a lot faster if the
-  `unstable` feature is enabled.
-* `unstable` -- The `monotonic_check` feature will be faster but requite a
-  `nightly` toolchain.
-* `use_std` -- The `monotonic_check` accelleration will be detected at
-  runtime.
+  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)
+  code will check if the knot vector is monotonic. This check can be
+  made a lot faster if the `unstable` feature is enabled.
+* `unstable` -- The `monotonic_check` feature will be faster but
+  requires a `nightly` toolchain.
+* `std` -- The `monotonic_check` accelleration will be detected at runtime.
 
 ## Background
 
