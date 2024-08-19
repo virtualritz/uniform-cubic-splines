@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 readme = "README.md"
@@ -12,10 +12,10 @@ documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
 [dependencies]
-num-traits = "0.2"
-lerp = "0.5"
 # Enable the is_sorted check on spline_inverse()
 is_sorted = { version = "0.1", default-features = false, optional = true }
+lerp = "0.5"
+num-traits = "0.2"
 
 [dev-dependencies]
 rand = "0.8"
