@@ -60,7 +60,6 @@
 //! languages used in offline rendering this crate should feel like
 //! home.
 use core::ops::{Add, Mul};
-#[cfg(debug_assertions)]
 #[cfg(feature = "monotonic_check")]
 use is_sorted::IsSorted;
 use lerp::Lerp;
