@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 //! Uniform cubic spline interpolation & inversion.
 //!
 //! This crate supports the following types of splines:
@@ -18,12 +18,7 @@
 //! ## Cargo Features
 //!
 //! * `monotonic_check` -- The [`spline_inverse()`] code will check if the knot
-//!   vector is monotonic (on by default). This check can be made a lot faster
-//!   if the `unstable` feature is enabled.
-//! * `unstable` -- The `monotonic_check` feature will be faster but requite a
-//!   `nightly` toolchain.
-//! * `std` -- The `monotonic_check` accelleration will be detected at runtime
-//!   (on by default).
+//!   vector is monotonic (on by default).
 //!
 //! The crate does not depend on the standard library (i.e. is marked
 //! `no_std`).
@@ -60,8 +55,6 @@
 //! languages used in offline rendering this crate should feel like
 //! home.
 use core::ops::{Add, Mul};
-#[cfg(feature = "monotonic_check")]
-use is_sorted::IsSorted;
 use lerp::Lerp;
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
@@ -205,7 +198,7 @@ where
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
 {
     #[cfg(feature = "monotonic_check")]
-    if !IsSorted::is_sorted(&mut knots.iter()) {
+    if !knots.is_sorted() {
         panic!("The knots array fed to spline_inverse() is not monotonic.");
     }
 

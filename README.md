@@ -7,18 +7,18 @@ Uniform cubic spline interpolation & inversion.
 
 This crate supports the following types of splines:
 
-* [B-spline](https://en.wikipedia.org/wiki/B-spline)
-* [Bezier](https://en.wikipedia.org/wiki/Composite_B%C3%A9zier_curve)
-* [Catmull-Rom](https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Catmull%E2%80%93Rom_spline)
-* [Hermite](https://en.wikipedia.org/wiki/Cubic_Hermite_spline)
-* Linear
-* Power
+- [B-spline](https://en.wikipedia.org/wiki/B-spline)
+- [Bezier](https://en.wikipedia.org/wiki/Composite_B%C3%A9zier_curve)
+- [Catmull-Rom](https://en.wikipedia.org/wiki/Cubic_Hermite_spline#Catmull%E2%80%93Rom_spline)
+- [Hermite](https://en.wikipedia.org/wiki/Cubic_Hermite_spline)
+- Linear
+- Power
 
 ![Curve widget with 1D Catmull-Rom spline](spline_ui.png)
 
-*Curve widget with a 1D Catmull-Rom spline with non-uniform knot
+_Curve widget with a 1D Catmull-Rom spline with non-uniform knot
 spacing and knot multiplicity using this crate for interpolation
-(drawn using `tiny-skia`).*
+(drawn using `tiny-skia`)._
 
 The crate uses generics to allow interpolation of any type for which
 certain traits are defined.
@@ -55,15 +55,9 @@ assert!(y - 4.2 < 1e-6);
 
 ## Features
 
-* `monotonic_check` -- The
+- `monotonic_check` -- The
   [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)
   code will check if the knot vector is monotonic **(on by default)**.
-  This check can be made a lot faster if the `unstable` feature is
-  enabled.
-* `unstable` -- The `monotonic_check` feature will be faster but
-  requires a `nightly` toolchain.
-* `std` -- The `monotonic_check` accelleration will be detected at
-  runtime **(on by default)**.
 
 ## Background
 
