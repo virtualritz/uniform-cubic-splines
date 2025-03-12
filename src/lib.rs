@@ -9,24 +9,22 @@
 //! * Linear
 //! * Power
 //!
-//! The crate uses generics to allow interpolation of any type for
-//! which certain traits are defined.
+//! The crate uses generics to allow interpolation of any type for which
+//! certain traits are defined.
 //!
-//! I.e. you can use this crate to interpolate splines in 1D, 2D, 3D,
-//! etc.
+//! I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 //!
 //! ## Cargo Features
 //!
 //! * `monotonic_check` -- The [`spline_inverse()`] code will check if the knot
 //!   vector is monotonic (on by default).
 //!
-//! The crate does not depend on the standard library (i.e. is marked
-//! `no_std`).
+//! The crate does not depend on the standard library (i.e. is marked `no_std`).
 //!
 //! ## Example
 //!
-//! Using a combination of [`spline()`] and [`spline_inverse()`] it is
-//! possible to compute a full spline-with-non-uniform-abscissæ:
+//! Using a combination of [`spline()`] and [`spline_inverse()`] it is possible
+//! to compute a full spline-with-non-uniform-abscissæ:
 //!
 //! ```
 //! use uniform_cubic_splines::{basis::CatmullRom, spline, spline_inverse};
@@ -51,9 +49,8 @@
 //! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
 //! C++ source.
 //!
-//! If you come from a background of computer graphics/shading
-//! languages used in offline rendering this crate should feel like
-//! home.
+//! If you come from a background of computer graphics/shading languages used in
+//! offline rendering this crate should feel like home.
 use core::ops::{Add, Mul};
 use lerp::Lerp;
 use num_traits::{
@@ -67,23 +64,22 @@ mod basis_macros;
 pub mod basis;
 use basis::*;
 
-/// As `x` varies from `0` to `1`, this function returns the value
-/// of a cubic interpolation of uniformly spaced `knots`.
+/// As `x` varies from `0` to `1`, this function returns the value of a cubic
+/// interpolation of uniformly spaced `knots`.
+///
 /// The input value `x` will be clamped to the range `[0, 1]`.
 ///
-/// Depending on the choosen [`Basis`] the length of the `knots`
-/// parameter has certain constraints.
-///
-/// If these constraints are not honored the code produces
-/// undefined behavior in a release build.
+/// Depending on the choosen [`Basis`] the length of the `knots` parameter has
+/// certain constraints. If these constraints are not honored the code will
+/// produce undefined results in a `release` build.
 ///
 /// # Panics
 ///
-/// If the `knots` slice has the wrong length this will panic when
-/// the code is built with debug assertion enabled.
+/// If the `knots` slice has the wrong length this will panic with a resp. error
+/// message when the code is built with debug assertion enabled.
 ///
-/// Use the [`is_len_ok()`] helper to check if a knot slice you want
-/// to feed to this function has the correct length.
+/// Use the [`is_len_ok()`] helper to check if a knot slice you want to feed to
+/// this function has the correct length.
 ///
 /// # Examples
 ///
@@ -99,7 +95,7 @@ pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
 where
     B: Basis<T>,
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
-    U: Add<Output = U> + Copy + Mul<T, Output = U> + Zero,
+    U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
 {
     // UX
     #[cfg(debug_assertions)]
@@ -145,12 +141,15 @@ where
         .map(|row| {
             cv.iter()
                 .zip(row.iter())
-                .fold(U::zero(), |total, (cv, basis)| total + *cv * *basis)
+                .fold(U::zero(), |total, (cv, basis)| {
+                    total + cv.clone() * *basis
+                })
         })
         .fold(Zero::zero(), |acc, elem| acc * x + elem)
 }
 
 /// Computes the inverse of the [`spline()`] function.
+///
 /// This returns the value `x` for which `spline(x)` would return `y`.
 ///
 /// Results are undefined if the `knots` do not specifiy a monotonic (only
@@ -286,7 +285,7 @@ where
 {
     // Use the Regula Falsi method, falling back to bisection if it
     // hasn't converged after 3/4 of the maximum number of iterations.
-    // See, e.g., Numerical Recipes for the basic ideas behind both
+    // See, e.g., "Numerical Recipes" for the basic ideas behind both
     // methods.
     let mut v0 = function(x_min);
     let mut v1 = function(x_max);

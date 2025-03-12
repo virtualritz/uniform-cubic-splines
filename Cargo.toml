@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.1.10"
+version = "0.2.0"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 readme = "README.md"
@@ -17,7 +17,7 @@ lerp = "0.5"
 num-traits = "0.2"
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.9"
 
 [features]
 default = ["monotonic_check"]
