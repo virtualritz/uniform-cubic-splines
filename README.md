@@ -47,7 +47,7 @@ let x = 0.3;
 let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 
-let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
+let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
 let y = spline::<CatmullRom, _, _>(v, &knots);
 
 assert!(y - 4.2 < 1e-6);
@@ -56,7 +56,7 @@ assert!(y - 4.2 < 1e-6);
 ## Features
 
 - `monotonic_check` -- The
-  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)
+  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)/`spline_inverse_with()`
   code will check if the knot vector is monotonic **(on by default)**.
 
 ## Background

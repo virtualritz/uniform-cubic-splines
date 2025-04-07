@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 readme = "README.md"
@@ -10,9 +10,9 @@ license = "MIT OR Apache-2.0 OR Zlib"
 description = "Simple uniform cubic spline evaluation and inversion."
 documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
+rust-version = "1.83"
 
 [dependencies]
-# Enable the is_sorted check on spline_inverse()
 lerp = "0.5"
 num-traits = "0.2"
 
@@ -21,6 +21,7 @@ rand = "0.9"
 
 [features]
 default = ["monotonic_check"]
+# Enable the `is_sorted()` check on `spline_inverse()`
 monotonic_check = []
 
 [profile.bench]

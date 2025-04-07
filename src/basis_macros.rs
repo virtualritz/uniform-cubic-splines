@@ -1,6 +1,6 @@
 macro_rules! b_spline_basis {
     ($type:ident) => {
-        impl Basis<$type> for BSpline {
+        impl Basis<$type> for Bspline {
             const NAME: &'static str = "B-spline";
             const STEP: usize = 1;
             const MATRIX: [[$type; 4]; 4] = [

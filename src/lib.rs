@@ -16,18 +16,18 @@
 //!
 //! ## Cargo Features
 //!
-//! * `monotonic_check` -- The [`spline_inverse()`] code will check if the knot
-//!   vector is monotonic (on by default).
+//! * `monotonic_check` -- The [`spline_inverse()`]/[`spline_inverse_with()`]
+//!   code will check if the knot vector is monotonic (on by default).
 //!
 //! The crate does not depend on the standard library (i.e. is marked `no_std`).
 //!
 //! ## Example
 //!
 //! Using a combination of [`spline()`] and [`spline_inverse()`] it is possible
-//! to compute a full spline-with-non-uniform-abscissæ:
+//! to compute a full *spline-with-non-uniform-abscissæ*:
 //!
 //! ```
-//! use uniform_cubic_splines::{basis::CatmullRom, spline, spline_inverse};
+//! use uniform_cubic_splines::prelude::*;
 //!
 //! // We want to evaluate the spline at knot value 0.3.
 //! let x = 0.3;
@@ -36,8 +36,7 @@
 //! let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 //! let knots = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //!
-//! let v =
-//!     spline_inverse::<CatmullRom, _>(x, &knot_spacing, None, None).unwrap();
+//! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
 //! let y = spline::<CatmullRom, _, _>(v, &knots);
 //!
 //! assert!(y - 4.2 < 1e-6);
@@ -59,10 +58,43 @@ use num_traits::{
     identities::{One, Zero},
 };
 
+pub mod prelude {
+    pub use crate::basis::*;
+    pub use crate::*;
+}
+
 #[macro_use]
 mod basis_macros;
 pub mod basis;
 use basis::*;
+
+/// Options for [`spline_inverse_with()`] function.
+#[derive(Clone, Copy, Debug)]
+pub struct SplineInverseOptions<T> {
+    /// Controls the max. number of iterations of the
+    /// [regular falsi](https://en.wikipedia.org/wiki/Regula_falsi) algorithm.
+    ///
+    /// The default is `32`.
+    pub iterations: usize,
+    /// Controls the cutoff precision that is used to determine when the result
+    /// is a good enough approximation, even if the specified number of
+    /// `iterations` was *not* reached yet.
+    ///
+    /// The default is `1.0e-6`.
+    pub precision: T,
+}
+
+impl<T> Default for SplineInverseOptions<T>
+where
+    T: FromPrimitive,
+{
+    fn default() -> Self {
+        Self {
+            iterations: 32,
+            precision: T::from_f64(1.0e-6).unwrap(),
+        }
+    }
+}
 
 /// As `x` varies from `0` to `1`, this function returns the value of a cubic
 /// interpolation of uniformly spaced `knots`.
@@ -78,8 +110,8 @@ use basis::*;
 /// If the `knots` slice has the wrong length this will panic with a resp. error
 /// message when the code is built with debug assertion enabled.
 ///
-/// Use the [`is_len_ok()`] helper to check if a knot slice you want to feed to
-/// this function has the correct length.
+/// Use the [`is_len_ok()`](crate::basis::Basis::is_len_ok()) helper to check if
+/// a knot slice you want to feed to this function has the correct length.
 ///
 /// # Examples
 ///
@@ -159,15 +191,8 @@ where
 ///
 /// The underlying algorithm uses the
 /// [regular falsi](https://en.wikipedia.org/wiki/Regula_falsi) method to find
-/// the solution.
-///
-/// The `iterations` parameter controls the max. number of iterations of this
-/// this algorithm. If omitted, the default is `32`.
-///
-/// The `precision` parameter controls the cutoff precision that is used to
-/// determine when the result is a good enough approximation, even if the
-/// specified number of `iterations` was not reached yet. If omitted, the
-/// default is `1e-6`.
+/// the solution. If you need more control over the algorithm use the
+/// [`spline_inverse_with()`] function.
 ///
 /// # Panics
 ///
@@ -177,20 +202,52 @@ where
 /// # Examples
 ///
 /// ```
-/// use uniform_cubic_splines::{basis::Linear, spline_inverse};
+/// # use uniform_cubic_splines::prelude::*;
+/// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
+/// assert_eq!(Some(0.5), spline_inverse::<Linear, _>(0.25f64, &knots));
+/// ```
+#[inline(always)]
+pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
+where
+    B: Basis<T>,
+    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+{
+    spline_inverse_with::<B, T>(y, knots, &SplineInverseOptions::default())
+}
+
+/// Computes the inverse of the [`spline()`] function with control over
+/// iterations & precision via resp. [`SplineInverseOptions`].
+///
+/// See the [`spline_inverse()`] function for details.
+///
+/// # Panics
+///
+/// If the `monotonic_check` feature is enabled this will panic if the `knots`
+/// slice is not monotonic.
+///
+/// # Examples
+///
+/// ```
+/// # use uniform_cubic_splines::prelude::*;
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
 /// assert_eq!(
 ///     Some(0.5),
-///     spline_inverse::<Linear, _>(0.25f64, &knots, None, None)
+///     spline_inverse_with::<Linear, _>(
+///         0.25f64,
+///         &knots,
+///         &SplineInverseOptions {
+///             iterations: 16,
+///             ..Default::default()
+///         }
+///     )
 /// );
 /// ```
-pub fn spline_inverse<B, T>(
+pub fn spline_inverse_with<B, T>(
     y: T,
     knots: &[T],
-    iterations: Option<usize>,
-    precision: Option<T>,
+    options: &SplineInverseOptions<T>,
 ) -> Option<T>
 where
     B: Basis<T>,
@@ -245,8 +302,8 @@ where
             y,
             r0,
             r1,
-            iterations.unwrap_or(32),
-            precision.unwrap_or(T::from_f64(1.0e-6).unwrap()),
+            options.iterations,
+            options.precision,
         ) {
             return Some(x);
         }
@@ -260,6 +317,10 @@ where
 
 /// Returns `true` if a `knots` slice you want to feed into
 /// [`spline()`] has the correct length for the choosen [`Basis`].
+#[deprecated(
+    since = "0.3.0",
+    note = "Use the resp. basis's `is_len_ok()` function."
+)]
 pub fn is_len_ok<B>(len: usize) -> bool
 where
     B: Basis<f32>,
