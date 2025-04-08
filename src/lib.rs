@@ -138,7 +138,7 @@ where
             4 + B::EXTRA_KNOTS,
             knots.len()
         );
-    } else if (B::EXTRA_KNOTS != 0) && ((knots.len() - B::EXTRA_KNOTS) % 4 == 0)
+    } else if (B::EXTRA_KNOTS != 0) && ((knots.len() - B::EXTRA_KNOTS) % 4 != 0)
     {
         panic!(
             "{} curve must have 4×𝘯+{} knots. Found: {}.",
