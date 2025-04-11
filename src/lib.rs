@@ -16,7 +16,7 @@
 //!
 //! ## Example
 //!
-//! Using a combination of [`spline()`] and [`spline_inverse()`] it is possible
+//! Using a combination of [`spline_inverse()`] and [`spline()`] it is possible
 //! to compute a full *spline-with-non-uniform-abscissæ*:
 //!
 //! ```
