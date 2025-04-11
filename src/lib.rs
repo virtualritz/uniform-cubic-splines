@@ -14,13 +14,6 @@
 //!
 //! I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 //!
-//! ## Cargo Features
-//!
-//! * `monotonic_check` -- The [`spline_inverse()`]/[`spline_inverse_with()`]
-//!   code will check if the knot vector is monotonic (on by default).
-//!
-//! The crate does not depend on the standard library (i.e. is marked `no_std`).
-//!
 //! ## Example
 //!
 //! Using a combination of [`spline()`] and [`spline_inverse()`] it is possible
@@ -50,7 +43,19 @@
 //!
 //! If you come from a background of computer graphics/shading languages used in
 //! offline rendering this crate should feel like home.
-use core::ops::{Add, Mul};
+//!
+//! ## `no-std`
+//!
+//! The crate does not depend on the standard library (i.e. is marked `no_std`).
+//!
+//! ## Cargo Features
+//!
+//! * `monotonic_check` --- The `spline_inverse()`/[`spline_inverse_with()`]
+//!   code will check if the knot vector is monotonic (*enabled* by default).
+use core::{
+    num::NonZeroU16,
+    ops::{Add, Mul},
+};
 use lerp::Lerp;
 use num_traits::{
     cast::{AsPrimitive, FromPrimitive},
@@ -75,10 +80,10 @@ pub struct SplineInverseOptions<T> {
     /// [regular falsi](https://en.wikipedia.org/wiki/Regula_falsi) algorithm.
     ///
     /// The default is `32`.
-    pub iterations: usize,
+    pub max_iterations: NonZeroU16,
     /// Controls the cutoff precision that is used to determine when the result
     /// is a good enough approximation, even if the specified number of
-    /// `iterations` was *not* reached yet.
+    /// `max_iterations` was *not* reached yet.
     ///
     /// The default is `1.0e-6`.
     pub precision: T,
@@ -90,7 +95,7 @@ where
 {
     fn default() -> Self {
         Self {
-            iterations: 32,
+            max_iterations: NonZeroU16::new(32).unwrap(),
             precision: T::from_f64(1.0e-6).unwrap(),
         }
     }
@@ -103,12 +108,12 @@ where
 ///
 /// Depending on the choosen [`Basis`] the length of the `knots` parameter has
 /// certain constraints. If these constraints are not honored the code will
-/// produce undefined results in a `release` build.
+/// produce undefined results in a `release` build. See below.
 ///
 /// # Panics
 ///
 /// If the `knots` slice has the wrong length this will panic with a resp. error
-/// message when the code is built with debug assertion enabled.
+/// message when the code is built with debug assertions *enabled*.
 ///
 /// Use the [`is_len_ok()`](crate::basis::Basis::is_len_ok()) helper to check if
 /// a knot slice you want to feed to this function has the correct length.
@@ -129,24 +134,8 @@ where
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
     U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
 {
-    // UX
     #[cfg(debug_assertions)]
-    if knots.len() < 4 + B::EXTRA_KNOTS {
-        panic!(
-            "{} curve must have at least {} knots. Found: {}.",
-            B::NAME,
-            4 + B::EXTRA_KNOTS,
-            knots.len()
-        );
-    } else if (B::EXTRA_KNOTS != 0) && ((knots.len() - B::EXTRA_KNOTS) % 4 == 0)
-    {
-        panic!(
-            "{} curve must have 4×𝘯+{} knots. Found: {}.",
-            B::NAME,
-            B::EXTRA_KNOTS,
-            knots.len()
-        );
-    }
+    len_check!(knots);
 
     let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
 
@@ -187,6 +176,10 @@ where
 /// Results are undefined if the `knots` do not specifiy a monotonic (only
 /// increasing or only decreasing) set of values.
 ///
+/// Depending on the choosen [`Basis`] the length of the `knots` parameter has
+/// certain constraints. If these constraints are not honored the code will
+/// produce undefined results in a `release` build. See below.
+///
 /// If no solution can be found the function returns `None`.
 ///
 /// The underlying algorithm uses the
@@ -198,6 +191,11 @@ where
 ///
 /// If the `monotonic_check` feature is enabled this will panic if the `knots`
 /// slice is not monotonic.
+/// If the `knots` slice has the wrong length this will panic with a resp. error
+/// message when the code is built with debug assertions *enabled*.
+///
+/// Use the [`is_len_ok()`](crate::basis::Basis::is_len_ok()) helper to check if
+/// a knot slice you want to feed to this function has the correct length.
 ///
 /// # Examples
 ///
@@ -207,7 +205,6 @@ where
 ///
 /// assert_eq!(Some(0.5), spline_inverse::<Linear, _>(0.25f64, &knots));
 /// ```
-#[inline(always)]
 pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
 where
     B: Basis<T>,
@@ -219,16 +216,12 @@ where
 /// Computes the inverse of the [`spline()`] function with control over
 /// iterations & precision via resp. [`SplineInverseOptions`].
 ///
-/// See the [`spline_inverse()`] function for details.
-///
-/// # Panics
-///
-/// If the `monotonic_check` feature is enabled this will panic if the `knots`
-/// slice is not monotonic.
+/// See the [`spline_inverse()`] function for details; including panics.
 ///
 /// # Examples
 ///
 /// ```
+/// # use core::num::NonZeroU16;
 /// # use uniform_cubic_splines::prelude::*;
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
@@ -238,7 +231,7 @@ where
 ///         0.25f64,
 ///         &knots,
 ///         &SplineInverseOptions {
-///             iterations: 16,
+///             max_iterations: NonZeroU16::new(16).unwrap(),
 ///             ..Default::default()
 ///         }
 ///     )
@@ -253,13 +246,15 @@ where
     B: Basis<T>,
     T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
 {
+    #[cfg(debug_assertions)]
+    len_check!(knots);
+
     #[cfg(feature = "monotonic_check")]
     if !knots.is_sorted() {
         panic!("The knots array fed to spline_inverse() is not monotonic.");
     }
 
-    // Account for out-of-range inputs;
-    // just clamp to the values we have.
+    // Account for out-of-range inputs; just clamp to the values we have.
     let low_index: usize = if B::STEP == 1 { 1 } else { 0 };
 
     let high_index = if B::STEP == 1 {
@@ -302,7 +297,7 @@ where
             y,
             r0,
             r1,
-            options.iterations,
+            options.max_iterations.into(),
             options.precision,
         ) {
             return Some(x);
@@ -315,8 +310,8 @@ where
     None
 }
 
-/// Returns `true` if a `knots` slice you want to feed into
-/// [`spline()`] has the correct length for the choosen [`Basis`].
+/// Returns `true` if a `knots` slice you want to feed into [`spline()`] has the
+/// correct length for the choosen [`Basis`].
 #[deprecated(
     since = "0.3.0",
     note = "Use the resp. basis's `is_len_ok()` function."
@@ -334,11 +329,11 @@ where
 
 #[inline]
 fn invert<T>(
-    function: &dyn Fn(T) -> T,
+    function: &impl Fn(T) -> T,
     y: T,
     x_min: T,
     x_max: T,
-    max_iterations: usize,
+    max_iterations: u16,
     epsilon: T,
 ) -> Option<T>
 where
@@ -415,4 +410,28 @@ where
     } else {
         value
     }
+}
+
+#[macro_export]
+macro_rules! len_check {
+    ($knots:ident) => {
+        // UX
+        if $knots.len() < 4 + B::EXTRA_KNOTS {
+            panic!(
+                "{} curve must have at least {} knots. Found: {}.",
+                B::NAME,
+                4 + B::EXTRA_KNOTS,
+                $knots.len()
+            );
+        } else if (B::EXTRA_KNOTS != 0)
+            && (($knots.len() - B::EXTRA_KNOTS) % 4 == 0)
+        {
+            panic!(
+                "{} curve must have 4×𝘯+{} knots. Found: {}.",
+                B::NAME,
+                B::EXTRA_KNOTS,
+                $knots.len()
+            );
+        }
+    };
 }
