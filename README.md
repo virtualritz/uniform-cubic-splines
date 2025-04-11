@@ -57,7 +57,21 @@ assert!(y - 4.2 < 1e-6);
 
 - `monotonic_check` -- The
   [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)/`spline_inverse_with()`
-  code will check if the knot vector is monotonic **(on by default)**.
+  code will check if the knot vector is monotonic (_enabled_ by default).
+
+## `f16` & `f128` Support
+
+This crate supports `f16` and `f128` types on a `nightly` toolchain if you use this repository as an overlay in your `Cargo.toml`.
+
+```toml
+[patch.crates-io]
+uniform-cubic-splines = {
+    git = "https://github.com/virtualritz/uniform-cubic-splines.git"
+}
+```
+
+> This will be supported without an overlay once [this PR on `num-traits`]
+> (https://github.com/rust-num/num-traits/pull/333) is merged and published.
 
 ## Background
 

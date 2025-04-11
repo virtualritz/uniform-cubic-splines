@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 rust-version = "1.83"
@@ -13,16 +13,26 @@ documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
 [dependencies]
+document-features = "0.2"
 lerp = "0.5"
 num-traits = "0.2"
 
 [dev-dependencies]
+criterion = "0.5"
 rand = "0.9"
+
+[[bench]]
+name = "speed"
+harness = false
 
 [features]
 default = ["monotonic_check"]
-# Enable the `is_sorted()` check on `spline_inverse()`.
+## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
+## vector is monotonic.
 monotonic_check = []
 
 [profile.bench]
 debug = true
+
+[patch.crates-io]
+num-traits = { git = "https://github.com/usamoi/num-traits.git", rev = "5d120a1" }

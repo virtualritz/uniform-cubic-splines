@@ -1,4 +1,7 @@
 #![no_std]
+#![cfg_attr(has_f16, feature(f16))] // FIXME: remove it when it's stablized
+#![cfg_attr(has_f128, feature(f128))] // FIXME: remove it when it's stablized
+#![feature(test)]
 //! Uniform cubic spline interpolation & inversion.
 //!
 //! This crate supports the following types of splines:
@@ -49,9 +52,11 @@
 //! The crate does not depend on the standard library (i.e. is marked `no_std`).
 //!
 //! ## Cargo Features
-//!
-//! * `monotonic_check` --- The `spline_inverse()`/[`spline_inverse_with()`]
-//!   code will check if the knot vector is monotonic (*enabled* by default).
+#![doc = document_features::document_features!()]
+#[cfg(has_f128)]
+use core::f128;
+#[cfg(has_f16)]
+use core::f16;
 use core::{
     num::NonZeroU16,
     ops::{Add, Mul},
@@ -64,6 +69,7 @@ use num_traits::{
 };
 
 pub mod prelude {
+    //! Convenience re-exports.
     pub use crate::basis::*;
     pub use crate::*;
 }
@@ -71,7 +77,7 @@ pub mod prelude {
 #[macro_use]
 mod basis_macros;
 pub mod basis;
-use basis::*;
+pub use basis::*;
 
 /// Options for [`spline_inverse_with()`] function.
 #[derive(Clone, Copy, Debug)]
@@ -99,6 +105,30 @@ where
             precision: T::from_f64(1.0e-6).unwrap(),
         }
     }
+}
+
+#[cfg(debug_assertions)]
+macro_rules! len_check {
+    ($knots:ident) => {
+        // UX
+        if $knots.len() < 4 + B::EXTRA_KNOTS {
+            panic!(
+                "{} curve must have at least {} knots. Found: {}.",
+                B::NAME,
+                4 + B::EXTRA_KNOTS,
+                $knots.len()
+            );
+        } else if (B::EXTRA_KNOTS != 0)
+            && (($knots.len() - B::EXTRA_KNOTS) % 4 == 0)
+        {
+            panic!(
+                "{} curve must have 4×𝘯+{} knots. Found: {}.",
+                B::NAME,
+                B::EXTRA_KNOTS,
+                $knots.len()
+            );
+        }
+    };
 }
 
 /// As `x` varies from `0` to `1`, this function returns the value of a cubic
@@ -410,28 +440,4 @@ where
     } else {
         value
     }
-}
-
-#[macro_export]
-macro_rules! len_check {
-    ($knots:ident) => {
-        // UX
-        if $knots.len() < 4 + B::EXTRA_KNOTS {
-            panic!(
-                "{} curve must have at least {} knots. Found: {}.",
-                B::NAME,
-                4 + B::EXTRA_KNOTS,
-                $knots.len()
-            );
-        } else if (B::EXTRA_KNOTS != 0)
-            && (($knots.len() - B::EXTRA_KNOTS) % 4 == 0)
-        {
-            panic!(
-                "{} curve must have 4×𝘯+{} knots. Found: {}.",
-                B::NAME,
-                B::EXTRA_KNOTS,
-                $knots.len()
-            );
-        }
-    };
 }
