@@ -42,7 +42,7 @@
 //!
 //! The code is a Rust port of the resp. implementations found in the
 //! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
-//! C++ source.
+//! C++ source but was optimized quite a bit afterwards.
 //!
 //! If you come from a background of computer graphics/shading languages used in
 //! offline rendering this crate should feel like home.
@@ -53,6 +53,7 @@
 //!
 //! ## Cargo Features
 #![doc = document_features::document_features!()]
+
 #[cfg(has_f128)]
 use core::f128;
 #[cfg(has_f16)]
@@ -62,11 +63,7 @@ use core::{
     ops::{Add, Mul},
 };
 use lerp::Lerp;
-use num_traits::{
-    cast::{AsPrimitive, FromPrimitive},
-    float::Float,
-    identities::{One, Zero},
-};
+use num_traits::{cast::FromPrimitive, float::Float, identities::Zero};
 
 pub mod prelude {
     //! Convenience re-exports.
@@ -161,42 +158,71 @@ macro_rules! len_check {
 pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
 where
     B: Basis<T>,
-    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+    T: Float + FromPrimitive,
     U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
 {
     #[cfg(debug_assertions)]
     len_check!(knots);
 
-    let number_of_segments: usize = ((knots.len() - 4) / B::STEP) + 1;
+    let number_of_segments = ((knots.len() - 4) / B::STEP) + 1;
+    let num_seg_t = T::from_usize(number_of_segments).unwrap();
 
-    let mut x = clamp(x, Zero::zero(), One::one())
-        * T::from_usize(number_of_segments).unwrap();
+    // Scale x to find the segment and the interpolation parameter within it.
+    let x_scaled = x.clamp(T::zero(), T::one()) * num_seg_t;
+    let mut segment = x_scaled.to_usize().unwrap_or(0);
 
-    let mut segment: usize = x.as_();
+    // Clamp segment to the last valid index.
+    segment = segment.min(number_of_segments - 1);
 
-    let segment_bound = number_of_segments - 1;
-    if segment > segment_bound {
-        segment = segment_bound;
-    }
-
-    // x is the position along the segment.
-    x = x - T::from_usize(segment).unwrap();
+    // The interpolation parameter, t, for the segment [0, 1].
+    let t = x_scaled - T::from_usize(segment).unwrap();
 
     let start = segment * B::STEP;
-
-    // Get a slice for the segment.
     let cv = &knots[start..start + 4];
 
-    B::MATRIX
-        .iter()
-        .map(|row| {
-            cv.iter()
-                .zip(row.iter())
-                .fold(U::zero(), |total, (cv, basis)| {
-                    total + cv.clone() * *basis
-                })
-        })
-        .fold(Zero::zero(), |acc, elem| acc * x + elem)
+    spline_segment::<B, T, U>(t, cv)
+}
+
+/// Evaluates a spline for a single segment defined by 4 control points.
+/// This is the performance-critical inner loop of the `spline` function.
+#[inline]
+fn spline_segment<B, T, U>(x: T, cv: &[U]) -> U
+where
+    B: Basis<T>,
+    T: Float,
+    U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
+{
+    let m = B::MATRIX;
+    let c0 = &cv[0];
+    let c1 = &cv[1];
+    let c2 = &cv[2];
+    let c3 = &cv[3];
+
+    // Calculate the polynomial coefficients by transforming the control points
+    // with the basis matrix. This is equivalent to `w = M * C`.
+    // The matrix rows are grouped by powers of x for Horner's method.
+    let w0 = c0.clone() * m[0][0]
+        + c1.clone() * m[0][1]
+        + c2.clone() * m[0][2]
+        + c3.clone() * m[0][3];
+    let w1 = c0.clone() * m[1][0]
+        + c1.clone() * m[1][1]
+        + c2.clone() * m[1][2]
+        + c3.clone() * m[1][3];
+    let w2 = c0.clone() * m[2][0]
+        + c1.clone() * m[2][1]
+        + c2.clone() * m[2][2]
+        + c3.clone() * m[2][3];
+    let w3 = c0.clone() * m[3][0]
+        + c1.clone() * m[3][1]
+        + c2.clone() * m[3][2]
+        + c3.clone() * m[3][3];
+
+    // Evaluate the polynomial `((w0*x + w1)*x + w2)*x + w3` using Horner's
+    // method.
+    // This is highly efficient and should allow the compiler to generate fused
+    // multiply-add (FMA) instructions.
+    ((w0 * x + w1) * x + w2) * x + w3
 }
 
 /// Computes the inverse of the [`spline()`] function.
@@ -238,7 +264,7 @@ where
 pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
 where
     B: Basis<T>,
-    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+    T: Float + FromPrimitive,
 {
     spline_inverse_with::<B, T>(y, knots, &SplineInverseOptions::default())
 }
@@ -274,7 +300,7 @@ pub fn spline_inverse_with<B, T>(
 ) -> Option<T>
 where
     B: Basis<T>,
-    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+    T: Float + FromPrimitive,
 {
     #[cfg(debug_assertions)]
     len_check!(knots);
@@ -284,9 +310,9 @@ where
         panic!("The knots array fed to spline_inverse() is not monotonic.");
     }
 
-    // Account for out-of-range inputs; just clamp to the values we have.
-    let low_index: usize = if B::STEP == 1 { 1 } else { 0 };
-
+    // Account for out-of-range inputs by clamping to the spline's boundary
+    // values.
+    let low_index = if B::STEP == 1 { 1 } else { 0 };
     let high_index = if B::STEP == 1 {
         knots.len() - 2
     } else {
@@ -296,45 +322,47 @@ where
     // If increasing ...
     if knots[1] < knots[knots.len() - 2] {
         if y <= knots[low_index] {
-            return Some(Zero::zero());
+            return Some(T::zero());
         }
         if y >= knots[high_index] {
-            return Some(One::one());
+            return Some(T::one());
         }
     } else {
         if y >= knots[low_index] {
-            return Some(Zero::zero());
+            return Some(T::zero());
         }
         if y <= knots[high_index] {
-            return Some(One::one());
+            return Some(T::one());
         }
     }
 
-    let spline_function = |x| spline::<B, T, T>(x, knots);
-
     let number_of_segments = (knots.len() - 4) / B::STEP + 1;
-    let number_of_segments_inverted = 1.0 / number_of_segments as f64;
+    let inv_num_segments =
+        T::one() / T::from_usize(number_of_segments).unwrap();
 
-    // Search each interval.
-    let mut r0 = num_traits::Zero::zero();
-
+    // Search each segment for the value.
     for s in 0..number_of_segments {
-        let r1 =
-            T::from_f64(number_of_segments_inverted * (s + 1) as f64).unwrap();
+        let start = s * B::STEP;
+        let cv = &knots[start..start + 4];
 
-        if let Some(x) = invert(
-            &spline_function,
+        // This closure is cheap as it only operates on the 4 control points
+        // of the current segment. `invert` will search for `x_local` in [0, 1].
+        let spline_on_segment =
+            |x_local: T| spline_segment::<B, T, T>(x_local, cv);
+
+        if let Some(x_local) = invert(
+            &spline_on_segment,
             y,
-            r0,
-            r1,
+            T::zero(),
+            T::one(),
             options.max_iterations.into(),
             options.precision,
         ) {
-            return Some(x);
+            // Convert the local solution `x_local` in [0, 1] back to the global
+            // coordinate space, also in [0, 1].
+            let s_t = T::from_usize(s).unwrap();
+            return Some((s_t + x_local) * inv_num_segments);
         }
-
-        // Start of next interval is end of this one.
-        r0 = r1;
     }
 
     None
@@ -367,31 +395,31 @@ fn invert<T>(
     epsilon: T,
 ) -> Option<T>
 where
-    T: AsPrimitive<usize> + Float + FromPrimitive + PartialOrd + One + Zero,
+    T: Float + FromPrimitive + Lerp<T>,
 {
     // Use the Regula Falsi method, falling back to bisection if it
-    // hasn't converged after 3/4 of the maximum number of iterations.
-    // See, e.g., "Numerical Recipes" for the basic ideas behind both
-    // methods.
+    // struggles to converge. This is a robust approach for root-finding.
     let mut v0 = function(x_min);
     let mut v1 = function(x_max);
 
     let mut x = x_min;
     let increasing = v0 < v1;
 
-    let vmin = if increasing { v0 } else { v1 };
-    let vmax = if increasing { v1 } else { v0 };
+    let (vmin, vmax) = if increasing { (v0, v1) } else { (v1, v0) };
 
+    // If y is outside the range of this segment, there's no solution here.
     if !(vmin <= y && y <= vmax) {
         return None;
     }
 
-    // Already close enough.
-    if Float::abs(v0 - v1) < epsilon {
+    // Already close enough at the boundaries.
+    if (v0 - v1).abs() < epsilon {
         return Some(x);
     }
 
-    // How many times to try regula falsi.
+    // Switch to bisection if Regula Falsi hasn't converged after 3/4 of the
+    // maximum number of iterations.
+    // See, e.g., "Numerical Recipes" for the basic ideas behind both methods.
     let rf_iterations = (3 * max_iterations) / 4;
 
     let mut x_min = x_min;
@@ -399,18 +427,20 @@ where
 
     for iters in 0..max_iterations {
         // Interpolation factor.
-        let mut t: T;
-        if iters < rf_iterations {
+        let t = if iters < rf_iterations {
             // Regula falsi.
-            t = (y - v0) / (v1 - v0);
-            if t <= num_traits::Zero::zero() || t >= num_traits::One::one() {
-                // RF convergence failure -- bisect instead.
-                t = T::from_f64(0.5).unwrap();
+            let t_rf = (y - v0) / (v1 - v0);
+            if t_rf > T::zero() && t_rf < T::one() {
+                t_rf
+            } else {
+                // RF convergence failure (e.g., due to curvature), bisect
+                // instead.
+                T::from_f64(0.5).unwrap()
             }
         } else {
             // Bisection.
-            t = T::from_f64(0.5).unwrap();
-        }
+            T::from_f64(0.5).unwrap()
+        };
         x = x_min.lerp(x_max, t);
 
         let v = function(x);
@@ -421,23 +451,10 @@ where
             x_max = x;
             v1 = v;
         }
-        if Float::abs(x_max - x_min) < epsilon || Float::abs(v - y) < epsilon {
-            return Some(x); // converged
+        // Check for convergence.
+        if (x_max - x_min).abs() < epsilon || (v - y).abs() < epsilon {
+            return Some(x);
         }
     }
     Some(x)
-}
-
-#[inline]
-fn clamp<T>(value: T, min: T, max: T) -> T
-where
-    T: PartialOrd,
-{
-    if value < min {
-        min
-    } else if value > max {
-        max
-    } else {
-        value
-    }
 }

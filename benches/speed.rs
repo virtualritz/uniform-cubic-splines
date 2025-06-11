@@ -1,6 +1,5 @@
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion,
-};
+use core::hint::black_box;
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use uniform_cubic_splines::{spline, spline_inverse, CatmullRom};

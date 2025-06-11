@@ -82,3 +82,20 @@ C++ source.
 If you come from a background of computer graphics/shading
 languages used in offline rendering this crate should feel like
 home.
+
+## Speed
+
+The code was originally a faithful but idiomatic Rust port of the original C++ source. It was optimized quite a bit afterwards. The optimized code is in version `0.3.3` of the crate and after.
+
+For perspective, the current version's `spline()` function is about twice as fast and the `spline_inverse()` up to 3.5 times as fast as the original, faithful Rust port.
+
+### Benchmarks
+
+| **Points** | `spline()` | `spline_inverse()` |
+| ---------- | ---------- | ------------------ |
+| 10         | 15.5 ns    | 95 ns              |
+| 50         | 16.4 ns    | 181.2 ns           |
+| 100        | 16.8 ns    | 277.7 ns           |
+| 500        | 20.6 ns    | 1.275 µs           |
+
+These were taken on Ubuntu 25.04 with `rustc 1.89.0-nightly` and `target_cpu = "native"` on an AMD Ryzen 7 6800H laptop.
