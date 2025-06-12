@@ -70,8 +70,7 @@ uniform-cubic-splines = {
 }
 ```
 
-> This will be supported without an overlay once [this PR on `num-traits`]
-> (https://github.com/rust-num/num-traits/pull/333) is merged and published.
+> This will be supported without an overlay once [this PR on `num-traits`](https://github.com/rust-num/num-traits/pull/333) is merged and published.
 
 ## Background
 
@@ -85,7 +84,7 @@ home.
 
 ## Speed
 
-The code was originally a faithful but idiomatic Rust port of the original C++ source. It was optimized quite a bit afterwards. The optimized code is in version `0.3.3` of the crate and after.
+The code was originally a faithful but idiomatic Rust port of the C++ source. It was optimized quite a bit afterwards. The optimized code is in version `0.3.3` of the crate and after.
 
 For perspective, the current version's `spline()` function is about twice as fast and the `spline_inverse()` up to 3.5 times as fast as the original, faithful Rust port.
 
