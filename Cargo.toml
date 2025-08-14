@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.3.3"
+version = "0.4.0"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 rust-version = "1.83"
@@ -18,7 +18,7 @@ lerp = "0.5"
 num-traits = "0.2"
 
 [dev-dependencies]
-criterion = "0.6"
+criterion = "0.7"
 rand = "0.9"
 
 [[bench]]

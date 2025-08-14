@@ -54,10 +54,6 @@
 //! ## Cargo Features
 #![doc = document_features::document_features!()]
 
-#[cfg(has_f128)]
-use core::f128;
-#[cfg(has_f16)]
-use core::f16;
 use core::{
     num::NonZeroU16,
     ops::{Add, Mul},
@@ -116,7 +112,7 @@ macro_rules! len_check {
                 $knots.len()
             );
         } else if (B::EXTRA_KNOTS != 0)
-            && (($knots.len() - B::EXTRA_KNOTS) % 4 == 0)
+            && (($knots.len() - B::EXTRA_KNOTS) % 4 != 0)
         {
             panic!(
                 "{} curve must have 4×𝘯+{} knots. Found: {}.",
@@ -457,4 +453,194 @@ where
         }
     }
     Some(x)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn len_validation_bspline() {
+        // B-spline requires >= 4 knots.
+        assert!(<Bspline as Basis<f64>>::is_len_ok(4));
+        assert!(<Bspline as Basis<f64>>::is_len_ok(5));
+        assert!(<Bspline as Basis<f64>>::is_len_ok(10));
+        assert!(<Bspline as Basis<f64>>::is_len_ok(100));
+        assert!(!<Bspline as Basis<f64>>::is_len_ok(3));
+        assert!(!<Bspline as Basis<f64>>::is_len_ok(2));
+        assert!(!<Bspline as Basis<f64>>::is_len_ok(1));
+        assert!(!<Bspline as Basis<f64>>::is_len_ok(0));
+    }
+
+    #[test]
+    fn len_validation_catmull_rom() {
+        // Catmull-Rom requires >= 4 knots.
+        assert!(<CatmullRom as Basis<f64>>::is_len_ok(4));
+        assert!(<CatmullRom as Basis<f64>>::is_len_ok(5));
+        assert!(<CatmullRom as Basis<f64>>::is_len_ok(10));
+        assert!(<CatmullRom as Basis<f64>>::is_len_ok(100));
+        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(3));
+        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(2));
+        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(1));
+        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(0));
+    }
+
+    #[test]
+    fn len_validation_linear() {
+        // Linear requires >= 4 knots.
+        assert!(<Linear as Basis<f64>>::is_len_ok(4));
+        assert!(<Linear as Basis<f64>>::is_len_ok(5));
+        assert!(<Linear as Basis<f64>>::is_len_ok(10));
+        assert!(<Linear as Basis<f64>>::is_len_ok(100));
+        assert!(!<Linear as Basis<f64>>::is_len_ok(3));
+        assert!(!<Linear as Basis<f64>>::is_len_ok(2));
+        assert!(!<Linear as Basis<f64>>::is_len_ok(1));
+        assert!(!<Linear as Basis<f64>>::is_len_ok(0));
+    }
+
+    #[test]
+    fn len_validation_bezier() {
+        // Bezier requires 4×n+3 knots (n >= 1).
+        assert!(<Bezier as Basis<f64>>::is_len_ok(7)); // 4×1+3
+        assert!(<Bezier as Basis<f64>>::is_len_ok(11)); // 4×2+3
+        assert!(<Bezier as Basis<f64>>::is_len_ok(15)); // 4×3+3
+        assert!(<Bezier as Basis<f64>>::is_len_ok(19)); // 4×4+3
+        assert!(<Bezier as Basis<f64>>::is_len_ok(23)); // 4×5+3
+
+        // Invalid lengths.
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(3));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(4));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(5));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(6));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(8));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(9));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(10));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(12));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(13));
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(14));
+    }
+
+    #[test]
+    fn len_validation_hermite() {
+        // Hermite requires 4×n+2 knots (n >= 1).
+        assert!(<Hermite as Basis<f64>>::is_len_ok(6)); // 4×1+2
+        assert!(<Hermite as Basis<f64>>::is_len_ok(10)); // 4×2+2
+        assert!(<Hermite as Basis<f64>>::is_len_ok(14)); // 4×3+2
+        assert!(<Hermite as Basis<f64>>::is_len_ok(18)); // 4×4+2
+        assert!(<Hermite as Basis<f64>>::is_len_ok(22)); // 4×5+2
+
+        // Invalid lengths.
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(2));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(3));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(4));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(5));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(7));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(8));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(9));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(11));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(12));
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(13));
+    }
+
+    #[test]
+    fn len_validation_power() {
+        // Power requires 4×n+4 knots (n >= 1).
+        assert!(<Power as Basis<f64>>::is_len_ok(8)); // 4×1+4
+        assert!(<Power as Basis<f64>>::is_len_ok(12)); // 4×2+4
+        assert!(<Power as Basis<f64>>::is_len_ok(16)); // 4×3+4
+        assert!(<Power as Basis<f64>>::is_len_ok(20)); // 4×4+4
+        assert!(<Power as Basis<f64>>::is_len_ok(24)); // 4×5+4
+
+        // Invalid lengths.
+        assert!(!<Power as Basis<f64>>::is_len_ok(4));
+        assert!(!<Power as Basis<f64>>::is_len_ok(5));
+        assert!(!<Power as Basis<f64>>::is_len_ok(6));
+        assert!(!<Power as Basis<f64>>::is_len_ok(7));
+        assert!(!<Power as Basis<f64>>::is_len_ok(9));
+        assert!(!<Power as Basis<f64>>::is_len_ok(10));
+        assert!(!<Power as Basis<f64>>::is_len_ok(11));
+        assert!(!<Power as Basis<f64>>::is_len_ok(13));
+        assert!(!<Power as Basis<f64>>::is_len_ok(14));
+        assert!(!<Power as Basis<f64>>::is_len_ok(15));
+    }
+
+    #[test]
+    fn spline_evaluation_smoke_test() {
+        // Basic smoke test to ensure spline evaluation works.
+        let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0];
+        let result = spline::<CatmullRom, _, _>(0.5, &knots);
+        // Just check it doesn't panic and returns a reasonable value.
+        assert!(result.is_finite());
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "Bezier curve must have 4×𝘯+3 knots. Found: 8")]
+    fn bezier_invalid_length_panics() {
+        let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // 8 knots, invalid for Bezier.
+        let _ = spline::<Bezier, _, _>(0.5, &knots);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "Hermite curve must have 4×𝘯+2 knots. Found: 7")]
+    fn hermite_invalid_length_panics() {
+        let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0]; // 7 knots, invalid for Hermite.
+        let _ = spline::<Hermite, _, _>(0.5, &knots);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "Power curve must have 4×𝘯+4 knots. Found: 9")]
+    fn power_invalid_length_panics() {
+        let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 0.5]; // 9 knots, invalid for Power (not 4n+4).
+        let _ = spline::<Power, _, _>(0.5, &knots);
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(
+        expected = "B-spline curve must have at least 4 knots. Found: 3"
+    )]
+    fn bspline_too_few_knots_panics() {
+        let knots = [0.0, 1.0, 2.0]; // Only 3 knots.
+        let _ = spline::<Bspline, _, _>(0.5, &knots);
+    }
+
+    #[test]
+    fn bezier_valid_lengths_work() {
+        // Test that valid Bezier lengths don't panic.
+        let knots7 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0]; // 7 = 4×1+3.
+        let result = spline::<Bezier, _, _>(0.5, &knots7);
+        assert!(result.is_finite());
+
+        let knots11 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0]; // 11 = 4×2+3.
+        let result = spline::<Bezier, _, _>(0.5, &knots11);
+        assert!(result.is_finite());
+    }
+
+    #[test]
+    fn hermite_valid_lengths_work() {
+        // Test that valid Hermite lengths don't panic.
+        let knots6 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0]; // 6 = 4×1+2.
+        let result = spline::<Hermite, _, _>(0.5, &knots6);
+        assert!(result.is_finite());
+
+        let knots10 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0]; // 10 = 4×2+2.
+        let result = spline::<Hermite, _, _>(0.5, &knots10);
+        assert!(result.is_finite());
+    }
+
+    #[test]
+    fn power_valid_lengths_work() {
+        // Test that valid Power lengths don't panic.
+        let knots8 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // 8 = 4×1+4.
+        let result = spline::<Power, _, _>(0.5, &knots8);
+        assert!(result.is_finite());
+
+        let knots12 =
+            [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0, 5.0]; // 12 = 4×2+4.
+        let result = spline::<Power, _, _>(0.5, &knots12);
+        assert!(result.is_finite());
+    }
 }
