@@ -9,7 +9,6 @@ macro_rules! b_spline_basis {
                 [-3.0 / 6.0, 0.0 / 6.0, 3.0 / 6.0, 0.0 / 6.0],
                 [1.0 / 6.0, 4.0 / 6.0, 1.0 / 6.0, 0.0 / 6.0],
             ];
-            const EXTRA_KNOTS: usize = 0;
         }
     };
 }
@@ -25,7 +24,6 @@ macro_rules! bezier_basis {
                 [-3.0, 3.0, 0.0, 0.0],
                 [1.0, 0.0, 0.0, 0.0],
             ];
-            const EXTRA_KNOTS: usize = 3;
         }
     };
 }
@@ -41,7 +39,6 @@ macro_rules! catmull_rom_basis {
                 [-1.0 / 2.0, 0.0 / 2.0, 1.0 / 2.0, 0.0 / 2.0],
                 [0.0 / 2.0, 2.0 / 2.0, 0.0 / 2.0, 0.0 / 2.0],
             ];
-            const EXTRA_KNOTS: usize = 0;
         }
     };
 }
@@ -57,7 +54,6 @@ macro_rules! hermite_basis {
                 [0., 1., 0., 0.],
                 [1., 0., 0., 0.],
             ];
-            const EXTRA_KNOTS: usize = 2;
         }
     };
 }
@@ -73,7 +69,6 @@ macro_rules! linear_basis {
                 [0., -1., 1., 0.],
                 [0., 1., 0., 0.],
             ];
-            const EXTRA_KNOTS: usize = 0;
         }
     };
 }
@@ -89,7 +84,6 @@ macro_rules! power_basis {
                 [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ];
-            const EXTRA_KNOTS: usize = 4;
         }
     };
 }
@@ -105,7 +99,6 @@ macro_rules! _cardinal_basis {
                 [-$t, 0.0, $t, 0.0],
                 [0.0, 1.0, 0.0, 0.0],
             ];
-            const EXTRA_KNOTS: usize = 0;
         }
     };
 }

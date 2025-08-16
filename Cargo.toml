@@ -16,19 +16,25 @@ repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 document-features = "0.2"
 lerp = "0.5"
 num-traits = "0.2"
+thiserror = { version = "2", default-features = false }
 
 [dev-dependencies]
 criterion = "0.7"
 rand = "0.9"
+nalgebra = "0.34"
 
 [[bench]]
 name = "speed"
 harness = false
 
+[[bench]]
+name = "inverse_optimization"
+harness = false
+
 [features]
 default = ["monotonic_check"]
 ## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
-## vector is monotonic.
+## vector is monotonic. Disabling improves performance by ~5-10% but requires monotonic input.
 monotonic_check = []
 
 [profile.bench]

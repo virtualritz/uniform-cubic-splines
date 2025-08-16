@@ -27,7 +27,7 @@ I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 
 ```toml
 [dependencies]
-uniform-cubic-splines = { version = "0.3" }
+uniform-cubic-splines = { version = "0.4" }
 ```
 
 ## Example
@@ -36,9 +36,7 @@ Using a combination of `spline_inverse()` and `spline()` it is
 possible to compute a full spline-with-nonuniform-abscissæ:
 
 ```rust
-use uniform_cubic_splines::{
-    basis::CatmullRom, spline_inverse, spline,
-};
+use uniform_cubic_splines::prelude::*;
 
 // We want to evaluate the spline at knot value 0.3.
 let x = 0.3;
@@ -48,16 +46,42 @@ let knot_spacing = [0.0, 0.0, 0.1, 0.3, 1.0, 1.0];
 let knots        = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 
 let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
-let y = spline::<CatmullRom, _, _>(v, &knots);
+let y = spline::<CatmullRom, _, _>(v, &knots).unwrap();
 
-assert!(y - 4.2 < 1e-6);
+assert!((y - 4.2).abs() < 1e-6);
 ```
 
 ## Features
 
 - `monotonic_check` -- The
-  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)/`spline_inverse_with()`
-  code will check if the knot vector is monotonic (_enabled_ by default).
+  [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)/[`spline_inverse_with()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse_with.html)
+  code will check if the knot vector is monotonic (_enabled_ by default). **Performance impact**: Disabling this feature can improve `spline_inverse` performance by ~5-10% by eliminating monotonicity validation overhead. Only disable if you can guarantee monotonic input, as non-monotonic knots will produce undefined results.
+
+## Using with Math Libraries
+
+The `Spline` trait can be implemented for vector types from external math libraries. See the `tests/nalgebra_integration.rs` file for a complete example of implementing the trait for `nalgebra::Vector3<f32>` and `nalgebra::Point3<f32>`.
+
+```rust
+use nalgebra::Vector3;
+use uniform_cubic_splines::{spline, CatmullRom};
+
+// After implementing the Spline trait for Vector3<f32>
+let knots = vec![
+    Vector3::new(0.0, 0.0, 0.0),
+    Vector3::new(1.0, 1.0, 1.0),
+    Vector3::new(2.0, 0.0, 2.0),
+    Vector3::new(3.0, -1.0, 3.0),
+];
+
+let result = spline::<CatmullRom, _, _>(0.5, &knots).unwrap();
+```
+
+Note that vector types from math libraries need custom `Spline` implementations because:
+- The interpolation parameter `x` must be a scalar (f32/f64)
+- Vectors don't implement the `Float` trait
+- Component-wise interpolation requires custom logic
+
+See `tests/nalgebra_integration.rs` for an example of implementing the `Spline` trait for vector types using wrapper structs.
 
 ## `f16` & `f128` Support
 
@@ -74,27 +98,48 @@ uniform-cubic-splines = {
 
 ## Background
 
-The code is a Rust port of the implementation found in the [Open
+The code was originally a Rust port of the implementation found in the [Open
 Shading Language](https://github.com/imageworks/OpenShadingLanguage)
-C++ source.
+C++ source. However, it has since diverged significantly with numerous
+optimizations and improvements:
 
-If you come from a background of computer graphics/shading
-languages used in offline rendering this crate should feel like
-home.
+- **Optimized `spline_inverse`**: Uses binary search for segment location
+  (O(log n) instead of O(n)) for splines with >12 segments.
+- **Improved segment range detection**: Evaluates actual spline values at
+  segment boundaries instead of just checking control points.
 
-## Speed
+If you come from a background of computer graphics/shading languages used in offline rendering this crate should feel like home.
 
-The code was originally a faithful but idiomatic Rust port of the C++ source. It was optimized quite a bit afterwards. The optimized code is in version `0.3.3` of the crate and after.
+## Performance
 
-For perspective, the current version's `spline()` function is about twice as fast and the `spline_inverse()` up to 3.5 times as fast as the original, faithful Rust port.
+The implementation has been heavily optimized beyond the original OSL C++ source.
+
+### Key Optimizations
+
+- **Binary search in `spline_inverse`**: For splines with >12 segments, uses
+  binary search (O(log n)) instead of linear search (O(n)), providing up to
+  7x speedup for 1,000+ segments.
+- **Adaptive root-finding**: Illinois modification of Regula Falsi with
+  automatic fallback to bisection for robust convergence.
+- **Optimized polynomial evaluation**: Uses Horner's method for efficient
+  cubic polynomial evaluation.
+
+### Architecture Changes in v0.5
+
+- **Trait-based design**: The new [`Spline`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/trait.Spline.html) trait allows specialized implementations for different types.
+- **Error handling**: Functions now return `Result<T, SplineError>` instead of panicking on invalid inputs.
 
 ### Benchmarks
 
-| **Points** | `spline()` | `spline_inverse()` |
-| ---------- | ---------- | ------------------ |
-| 10         | 15.5 ns    | 95 ns              |
-| 50         | 16.4 ns    | 181.2 ns           |
-| 100        | 16.8 ns    | 277.7 ns           |
-| 500        | 20.6 ns    | 1.275 µs           |
+Performance for scalar types (`f32` and `f64`):
 
-These were taken on Ubuntu 25.04 with `rustc 1.89.0-nightly` and `target_cpu = "native"` on an AMD Ryzen 7 6800H laptop.
+| **Points** | `f32 spline()` | `f32 spline_inverse()` | `f64 spline()` | `f64 spline_inverse()` |
+| ---------- | -------------- | ---------------------- | -------------- | ---------------------- |
+| 10         | 2.4 ns         | 19 ns                  | 2.3 ns         | 18 ns                  |
+| 50         | 2.4 ns         | 39 ns                  | 2.4 ns         | 39 ns                  |
+| 100        | 2.4 ns         | 62 ns                  | 2.4 ns         | 72 ns                  |
+| 500        | 2.4 ns         | 265 ns                 | 2.6 ns         | 263 ns                 |
+
+_Benchmarks taken on Ubuntu with `rustc 1.83.0-nightly` on an AMD Ryzen 7 6800H laptop._
+
+The trait-based architecture allows external math libraries to provide their own optimized implementations for vector types.

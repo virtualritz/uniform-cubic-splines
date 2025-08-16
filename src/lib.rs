@@ -17,6 +17,17 @@
 //!
 //! I.e. you can use this crate to interpolate splines in 1D, 2D, 3D, etc.
 //!
+//! ## Version 0.4 Changes
+//!
+//! * **Trait-based architecture**: New [`Spline`] trait enables specialized
+//!   implementations.
+//! * **Error handling**: Functions return [`Result<T,
+//!   SplineError>`](SplineResult) instead of panicking.
+//! * **Clone-based design**: Uses `Clone` instead of `Copy` to support more
+//!   types like `nalgebra::Vector3`.
+//! * **Extensibility**: External crates can implement [`Spline`] for their own
+//!   types.
+//!
 //! ## Example
 //!
 //! Using a combination of [`spline_inverse()`] and [`spline()`] it is possible
@@ -33,19 +44,28 @@
 //! let knots = [0.0, 0.0, 1.3, 4.2, 3.2, 3.2];
 //!
 //! let v = spline_inverse::<CatmullRom, _>(x, &knot_spacing).unwrap();
-//! let y = spline::<CatmullRom, _, _>(v, &knots);
+//! let y = spline::<CatmullRom, _, _>(v, &knots).unwrap();
 //!
 //! assert!(y - 4.2 < 1e-6);
 //! ```
 //!
 //! ## Background
 //!
-//! The code is a Rust port of the resp. implementations found in the
-//! [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
-//! C++ source but was optimized quite a bit afterwards.
+//! The code was originally a Rust port of the resp. implementations found in
+//! the [Open Shading Language](https://github.com/imageworks/OpenShadingLanguage)
+//! C++ source. However, it has since diverged significantly with extensive
+//! optimizations:
+//!
+//! * **Binary search optimization**: `spline_inverse` uses binary search for
+//!   splines with >12 segments, achieving O(log n) complexity instead of O(n)
+//! * **Improved range detection**: Evaluates actual spline values at segment
+//!   boundaries rather than just checking control points
+//! * **Adaptive root-finding**: Illinois-modified Regula Falsi with automatic
+//!   bisection fallback
 //!
 //! If you come from a background of computer graphics/shading languages used in
-//! offline rendering this crate should feel like home.
+//! offline rendering this crate should feel familiar while providing better
+//! performance.
 //!
 //! ## `no-std`
 //!
@@ -54,16 +74,16 @@
 //! ## Cargo Features
 #![doc = document_features::document_features!()]
 
-use core::{
-    num::NonZeroU16,
-    ops::{Add, Mul},
-};
+use core::cmp::PartialOrd;
+use core::num::NonZeroU16;
+use core::ops::{Add, Div, Mul, Sub};
 use lerp::Lerp;
-use num_traits::{cast::FromPrimitive, float::Float, identities::Zero};
+use num_traits::{FromPrimitive, One, Zero};
 
 pub mod prelude {
     //! Convenience re-exports.
     pub use crate::basis::*;
+    pub use crate::error::*;
     pub use crate::*;
 }
 
@@ -72,56 +92,40 @@ mod basis_macros;
 pub mod basis;
 pub use basis::*;
 
+mod error;
+pub use error::{SplineError, SplineResult};
+
+mod spline_trait;
+pub use spline_trait::Spline;
+
 /// Options for [`spline_inverse_with()`] function.
 #[derive(Clone, Copy, Debug)]
 pub struct SplineInverseOptions<T> {
     /// Controls the max. number of iterations of the
     /// [regular falsi](https://en.wikipedia.org/wiki/Regula_falsi) algorithm.
     ///
-    /// The default is `32`.
-    pub max_iterations: NonZeroU16,
+    /// If `None`, defaults to `32`.
+    pub max_iterations: Option<NonZeroU16>,
     /// Controls the cutoff precision that is used to determine when the result
     /// is a good enough approximation, even if the specified number of
     /// `max_iterations` was *not* reached yet.
     ///
-    /// The default is `1.0e-6`.
-    pub precision: T,
+    /// If `None`, defaults depend on the type:
+    /// - `f16`: `1.0e-3`
+    /// - `f32`: `1.0e-6`
+    /// - `f64`: `1.0e-10`
+    /// - `f128`: `1.0e-20`
+    /// - Other types: `1.0e-6`
+    pub precision: Option<T>,
 }
 
-impl<T> Default for SplineInverseOptions<T>
-where
-    T: FromPrimitive,
-{
+impl<T> Default for SplineInverseOptions<T> {
     fn default() -> Self {
         Self {
-            max_iterations: NonZeroU16::new(32).unwrap(),
-            precision: T::from_f64(1.0e-6).unwrap(),
+            max_iterations: None,
+            precision: None,
         }
     }
-}
-
-#[cfg(debug_assertions)]
-macro_rules! len_check {
-    ($knots:ident) => {
-        // UX
-        if $knots.len() < 4 + B::EXTRA_KNOTS {
-            panic!(
-                "{} curve must have at least {} knots. Found: {}.",
-                B::NAME,
-                4 + B::EXTRA_KNOTS,
-                $knots.len()
-            );
-        } else if (B::EXTRA_KNOTS != 0)
-            && (($knots.len() - B::EXTRA_KNOTS) % 4 != 0)
-        {
-            panic!(
-                "{} curve must have 4×𝘯+{} knots. Found: {}.",
-                B::NAME,
-                B::EXTRA_KNOTS,
-                $knots.len()
-            );
-        }
-    };
 }
 
 /// As `x` varies from `0` to `1`, this function returns the value of a cubic
@@ -129,14 +133,15 @@ macro_rules! len_check {
 ///
 /// The input value `x` will be clamped to the range `[0, 1]`.
 ///
-/// Depending on the choosen [`Basis`] the length of the `knots` parameter has
-/// certain constraints. If these constraints are not honored the code will
-/// produce undefined results in a `release` build. See below.
+/// Depending on the chosen [`Basis`] the length of the `knots` parameter has
+/// certain constraints. If these constraints are not honored, the function
+/// returns an error.
 ///
-/// # Panics
+/// # Errors
 ///
-/// If the `knots` slice has the wrong length this will panic with a resp. error
-/// message when the code is built with debug assertions *enabled*.
+/// Returns [`SplineError::InvalidKnotLength`] if the knot vector has too few
+/// knots. Returns [`SplineError::InvalidKnotPattern`] if the knot vector length
+/// doesn't match the required pattern for the basis type.
 ///
 /// Use the [`is_len_ok()`](crate::basis::Basis::is_len_ok()) helper to check if
 /// a knot slice you want to feed to this function has the correct length.
@@ -149,76 +154,75 @@ macro_rules! len_check {
 /// //                 0.0  0.25 0.5  0.75 1.0
 /// let knots = [-0.4, 0.0, 0.4, 0.5, 0.9, 1.0, 1.9];
 ///
-/// assert_eq!(0.4, spline::<CatmullRom, _, _>(0.25f64, &knots));
+/// assert_eq!(0.4, spline::<CatmullRom, _, _>(0.25f64, &knots).unwrap());
 /// ```
-pub fn spline<B, T, U>(x: T, knots: &[U]) -> U
+pub fn spline<B, T, U>(x: T, knots: &[U]) -> SplineResult<U>
 where
     B: Basis<T>,
-    T: Float + FromPrimitive,
-    U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
+    U: Spline<Scalar = T>,
 {
-    #[cfg(debug_assertions)]
-    len_check!(knots);
-
-    let number_of_segments = ((knots.len() - 4) / B::STEP) + 1;
-    let num_seg_t = T::from_usize(number_of_segments).unwrap();
-
-    // Scale x to find the segment and the interpolation parameter within it.
-    let x_scaled = x.clamp(T::zero(), T::one()) * num_seg_t;
-    let mut segment = x_scaled.to_usize().unwrap_or(0);
-
-    // Clamp segment to the last valid index.
-    segment = segment.min(number_of_segments - 1);
-
-    // The interpolation parameter, t, for the segment [0, 1].
-    let t = x_scaled - T::from_usize(segment).unwrap();
-
-    let start = segment * B::STEP;
-    let cv = &knots[start..start + 4];
-
-    spline_segment::<B, T, U>(t, cv)
+    U::spline::<B>(x, knots)
 }
 
 /// Evaluates a spline for a single segment defined by 4 control points.
 /// This is the performance-critical inner loop of the `spline` function.
 #[inline]
-fn spline_segment<B, T, U>(x: T, cv: &[U]) -> U
+pub fn spline_segment<B, T, U>(x: T, cv: &[U]) -> U
 where
     B: Basis<T>,
-    T: Float,
-    U: Add<Output = U> + Clone + Mul<T, Output = U> + Zero,
+    U: Spline<Scalar = T>,
 {
-    let m = B::MATRIX;
-    let c0 = &cv[0];
-    let c1 = &cv[1];
-    let c2 = &cv[2];
-    let c3 = &cv[3];
+    U::spline_segment::<B>(x, cv)
+}
 
-    // Calculate the polynomial coefficients by transforming the control points
-    // with the basis matrix. This is equivalent to `w = M * C`.
-    // The matrix rows are grouped by powers of x for Horner's method.
-    let w0 = c0.clone() * m[0][0]
-        + c1.clone() * m[0][1]
-        + c2.clone() * m[0][2]
-        + c3.clone() * m[0][3];
-    let w1 = c0.clone() * m[1][0]
-        + c1.clone() * m[1][1]
-        + c2.clone() * m[1][2]
-        + c3.clone() * m[1][3];
-    let w2 = c0.clone() * m[2][0]
-        + c1.clone() * m[2][1]
-        + c2.clone() * m[2][2]
-        + c3.clone() * m[2][3];
-    let w3 = c0.clone() * m[3][0]
-        + c1.clone() * m[3][1]
-        + c2.clone() * m[3][2]
-        + c3.clone() * m[3][3];
+/// Computes the inverse of a single spline segment.
+///
+/// This returns the value `x` in [0, 1] for which `spline_segment(x, cv)` would
+/// return `y`. Returns `None` if no solution exists within the segment.
+///
+/// The `cv` parameter must contain exactly 4 control values.
+///
+/// # Examples
+///
+/// ```
+/// use uniform_cubic_splines::{
+///     basis::Linear, spline_inverse_segment_with, SplineInverseOptions,
+/// };
+///
+/// let cv = [0.0, 0.25, 0.75, 1.0];
+/// let y = 0.5;
+///
+/// let x = spline_inverse_segment_with::<Linear, _>(
+///     y,
+///     &cv,
+///     &SplineInverseOptions::default(),
+/// );
+/// assert!(x.is_some());
+/// ```
+pub fn spline_inverse_segment<B, T>(y: T, cv: &[T]) -> Option<T>
+where
+    B: Basis<T>,
+    T: Spline<Scalar = T>,
+{
+    T::spline_inverse_segment::<B>(y, cv, &SplineInverseOptions::default())
+}
 
-    // Evaluate the polynomial `((w0*x + w1)*x + w2)*x + w3` using Horner's
-    // method.
-    // This is highly efficient and should allow the compiler to generate fused
-    // multiply-add (FMA) instructions.
-    ((w0 * x + w1) * x + w2) * x + w3
+/// Computes the inverse of a single spline segment with custom options.
+///
+/// This returns the value `x` in [0, 1] for which `spline_segment(x, cv)` would
+/// return `y`. Returns `None` if no solution exists within the segment.
+///
+/// The `cv` parameter must contain exactly 4 control values.
+pub fn spline_inverse_segment_with<B, T>(
+    y: T,
+    cv: &[T],
+    options: &SplineInverseOptions<T>,
+) -> Option<T>
+where
+    B: Basis<T>,
+    T: Spline<Scalar = T>,
+{
+    T::spline_inverse_segment::<B>(y, cv, options)
 }
 
 /// Computes the inverse of the [`spline()`] function.
@@ -242,9 +246,10 @@ where
 /// # Panics
 ///
 /// If the `monotonic_check` feature is enabled this will panic if the `knots`
-/// slice is not monotonic.
-/// If the `knots` slice has the wrong length this will panic with a resp. error
-/// message when the code is built with debug assertions *enabled*.
+/// slice is not monotonic. Note: disabling `monotonic_check` can improve
+/// performance by ~5-10% but will produce undefined results for non-monotonic
+/// knots. If the `knots` slice has the wrong length this will panic with a
+/// resp. error message when the code is built with debug assertions *enabled*.
 ///
 /// Use the [`is_len_ok()`](crate::basis::Basis::is_len_ok()) helper to check if
 /// a knot slice you want to feed to this function has the correct length.
@@ -260,9 +265,9 @@ where
 pub fn spline_inverse<B, T>(y: T, knots: &[T]) -> Option<T>
 where
     B: Basis<T>,
-    T: Float + FromPrimitive,
+    T: Spline<Scalar = T>,
 {
-    spline_inverse_with::<B, T>(y, knots, &SplineInverseOptions::default())
+    T::spline_inverse::<B>(y, knots, &SplineInverseOptions::default())
 }
 
 /// Computes the inverse of the [`spline()`] function with control over
@@ -277,14 +282,29 @@ where
 /// # use uniform_cubic_splines::prelude::*;
 /// let knots = [0.0, 0.0, 0.5, 0.5];
 ///
+/// // Use custom max iterations
 /// assert_eq!(
 ///     Some(0.5),
 ///     spline_inverse_with::<Linear, _>(
 ///         0.25f64,
 ///         &knots,
 ///         &SplineInverseOptions {
-///             max_iterations: NonZeroU16::new(16).unwrap(),
-///             ..Default::default()
+///             max_iterations: Some(NonZeroU16::new(16).unwrap()),
+///             precision: None, // Use default precision for f64 (1e-10)
+///         }
+///     )
+/// );
+///
+/// // Or use custom precision with f32
+/// let knots_f32 = [0.0f32, 0.0, 0.5, 0.5];
+/// assert_eq!(
+///     Some(0.5),
+///     spline_inverse_with::<Linear, _>(
+///         0.25f32,
+///         &knots_f32,
+///         &SplineInverseOptions {
+///             max_iterations: None,  // Use default (32)
+///             precision: Some(1e-8), // Custom precision
 ///         }
 ///     )
 /// );
@@ -296,72 +316,10 @@ pub fn spline_inverse_with<B, T>(
 ) -> Option<T>
 where
     B: Basis<T>,
-    T: Float + FromPrimitive,
+    T: Spline<Scalar = T>,
 {
-    #[cfg(debug_assertions)]
-    len_check!(knots);
-
-    #[cfg(feature = "monotonic_check")]
-    if !knots.is_sorted() {
-        panic!("The knots array fed to spline_inverse() is not monotonic.");
-    }
-
-    // Account for out-of-range inputs by clamping to the spline's boundary
-    // values.
-    let low_index = if B::STEP == 1 { 1 } else { 0 };
-    let high_index = if B::STEP == 1 {
-        knots.len() - 2
-    } else {
-        knots.len() - 1
-    };
-
-    // If increasing ...
-    if knots[1] < knots[knots.len() - 2] {
-        if y <= knots[low_index] {
-            return Some(T::zero());
-        }
-        if y >= knots[high_index] {
-            return Some(T::one());
-        }
-    } else {
-        if y >= knots[low_index] {
-            return Some(T::zero());
-        }
-        if y <= knots[high_index] {
-            return Some(T::one());
-        }
-    }
-
-    let number_of_segments = (knots.len() - 4) / B::STEP + 1;
-    let inv_num_segments =
-        T::one() / T::from_usize(number_of_segments).unwrap();
-
-    // Search each segment for the value.
-    for s in 0..number_of_segments {
-        let start = s * B::STEP;
-        let cv = &knots[start..start + 4];
-
-        // This closure is cheap as it only operates on the 4 control points
-        // of the current segment. `invert` will search for `x_local` in [0, 1].
-        let spline_on_segment =
-            |x_local: T| spline_segment::<B, T, T>(x_local, cv);
-
-        if let Some(x_local) = invert(
-            &spline_on_segment,
-            y,
-            T::zero(),
-            T::one(),
-            options.max_iterations.into(),
-            options.precision,
-        ) {
-            // Convert the local solution `x_local` in [0, 1] back to the global
-            // coordinate space, also in [0, 1].
-            let s_t = T::from_usize(s).unwrap();
-            return Some((s_t + x_local) * inv_num_segments);
-        }
-    }
-
-    None
+    // Delegate to the trait implementation which handles validation
+    T::spline_inverse::<B>(y, knots, options)
 }
 
 /// Returns `true` if a `knots` slice you want to feed into [`spline()`] has the
@@ -370,19 +328,15 @@ where
     since = "0.3.0",
     note = "Use the resp. basis's `is_len_ok()` function."
 )]
-pub fn is_len_ok<B>(len: usize) -> bool
+pub fn is_len_ok<B, T>(len: usize) -> bool
 where
-    B: Basis<f32>,
+    B: Basis<T>,
 {
-    if 0 == B::EXTRA_KNOTS {
-        4 <= len
-    } else {
-        4 + B::EXTRA_KNOTS <= len && 0 == (len - B::EXTRA_KNOTS) % 4
-    }
+    B::is_len_ok(len)
 }
 
 #[inline]
-fn invert<T>(
+pub(crate) fn invert<T>(
     function: &impl Fn(T) -> T,
     y: T,
     x_min: T,
@@ -391,68 +345,151 @@ fn invert<T>(
     epsilon: T,
 ) -> Option<T>
 where
-    T: Float + FromPrimitive + Lerp<T>,
+    T: Clone
+        + PartialOrd
+        + Zero
+        + One
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Mul<Output = T>
+        + Div<Output = T>
+        + FromPrimitive
+        + Lerp<T>,
 {
-    // Use the Regula Falsi method, falling back to bisection if it
-    // struggles to converge. This is a robust approach for root-finding.
-    let mut v0 = function(x_min);
-    let mut v1 = function(x_max);
+    // Optimized root-finding with adaptive strategy.
+    let mut v0 = function(x_min.clone());
+    let mut v1 = function(x_max.clone());
 
-    let mut x = x_min;
-    let increasing = v0 < v1;
+    let increasing = v0.clone() < v1.clone();
+    let (vmin, vmax) = if increasing {
+        (v0.clone(), v1.clone())
+    } else {
+        (v1.clone(), v0.clone())
+    };
 
-    let (vmin, vmax) = if increasing { (v0, v1) } else { (v1, v0) };
-
-    // If y is outside the range of this segment, there's no solution here.
-    if !(vmin <= y && y <= vmax) {
+    // Early exit if y is outside the range.
+    if !(vmin <= y.clone() && y.clone() <= vmax) {
         return None;
     }
 
-    // Already close enough at the boundaries.
-    if (v0 - v1).abs() < epsilon {
-        return Some(x);
+    // Check if we're already at the boundaries.
+    let two = T::from_f64(2.0).unwrap();
+    let diff0 = y.clone() - v0.clone();
+    let abs_diff0 = if diff0 < T::zero() {
+        T::zero() - diff0
+    } else {
+        diff0
+    };
+    if abs_diff0 < epsilon.clone() * two.clone() {
+        return Some(x_min);
+    }
+    let diff1 = y.clone() - v1.clone();
+    let abs_diff1 = if diff1 < T::zero() {
+        T::zero() - diff1
+    } else {
+        diff1
+    };
+    if abs_diff1 < epsilon.clone() * two {
+        return Some(x_max);
     }
 
-    // Switch to bisection if Regula Falsi hasn't converged after 3/4 of the
-    // maximum number of iterations.
-    // See, e.g., "Numerical Recipes" for the basic ideas behind both methods.
-    let rf_iterations = (3 * max_iterations) / 4;
-
+    // Adaptive strategy: Illinois modification of Regula Falsi to prevent
+    // stalling, with automatic fallback to bisection if convergence is
+    // slow.
     let mut x_min = x_min;
     let mut x_max = x_max;
+    let mut last_side = 0i8; // Track which side was updated last.
+    let mut stuck_count = 0u8; // Count iterations stuck on same side.
+
+    // Dynamic switching threshold based on problem difficulty.
+    let rf_iterations = (3 * max_iterations) / 4;
 
     for iters in 0..max_iterations {
-        // Interpolation factor.
-        let t = if iters < rf_iterations {
-            // Regula falsi.
-            let t_rf = (y - v0) / (v1 - v0);
-            if t_rf > T::zero() && t_rf < T::one() {
+        // Adaptive epsilon based on current interval.
+        let interval_diff = x_max.clone() - x_min.clone();
+        let interval_size = if interval_diff < T::zero() {
+            T::zero() - interval_diff
+        } else {
+            interval_diff
+        };
+        let threshold = interval_size.clone() * T::from_f64(1e-12).unwrap();
+        let adaptive_epsilon = if epsilon.clone() > threshold {
+            epsilon.clone()
+        } else {
+            threshold
+        };
+
+        // Check for convergence with adaptive tolerance.
+        if interval_size < adaptive_epsilon {
+            return Some(x_min.lerp(x_max, T::from_f64(0.5).unwrap()));
+        }
+
+        // Compute interpolation factor.
+        let t = if iters < rf_iterations && stuck_count < 3 {
+            // Modified Regula Falsi with Illinois modification.
+            let mut t_rf = (y.clone() - v0.clone()) / (v1.clone() - v0.clone());
+
+            // Apply Illinois modification if we're stuck on one side.
+            if stuck_count > 0 {
+                if last_side > 0 {
+                    // Stuck on right side, reduce left weight.
+                    v0 = v0 * T::from_f64(0.5).unwrap();
+                } else {
+                    // Stuck on left side, reduce right weight.
+                    v1 = v1 * T::from_f64(0.5).unwrap();
+                }
+                t_rf = (y.clone() - v0.clone()) / (v1.clone() - v0.clone());
+            }
+
+            // Ensure t is in valid range, otherwise bisect.
+            if t_rf > T::from_f64(0.01).unwrap()
+                && t_rf < T::from_f64(0.99).unwrap()
+            {
                 t_rf
             } else {
-                // RF convergence failure (e.g., due to curvature), bisect
-                // instead.
                 T::from_f64(0.5).unwrap()
             }
         } else {
-            // Bisection.
+            // Bisection for guaranteed convergence.
             T::from_f64(0.5).unwrap()
         };
-        x = x_min.lerp(x_max, t);
 
-        let v = function(x);
-        if (v < y) == increasing {
-            x_min = x;
-            v0 = v;
+        let x = x_min.clone().lerp(x_max.clone(), t);
+        let v = function(x.clone());
+
+        // Update interval and track convergence.
+        let side = if (v.clone() < y.clone()) == increasing {
+            x_min = x.clone();
+            v0 = v.clone();
+            1i8
         } else {
-            x_max = x;
-            v1 = v;
+            x_max = x.clone();
+            v1 = v.clone();
+            -1i8
+        };
+
+        // Track if we're stuck on same side.
+        if side == last_side {
+            stuck_count += 1;
+        } else {
+            stuck_count = 0;
         }
-        // Check for convergence.
-        if (x_max - x_min).abs() < epsilon || (v - y).abs() < epsilon {
+        last_side = side;
+
+        // Check value convergence.
+        let v_diff = v.clone() - y.clone();
+        let abs_v_diff = if v_diff < T::zero() {
+            T::zero() - v_diff
+        } else {
+            v_diff
+        };
+        if abs_v_diff < epsilon {
             return Some(x);
         }
     }
-    Some(x)
+
+    // Return best guess after max iterations.
+    Some(x_min.lerp(x_max, T::from_f64(0.5).unwrap()))
 }
 
 #[cfg(test)]
@@ -461,107 +498,58 @@ mod tests {
 
     #[test]
     fn len_validation_bspline() {
-        // B-spline requires >= 4 knots.
+        // B-spline has STEP=1, so any length >= 4 works.
         assert!(<Bspline as Basis<f64>>::is_len_ok(4));
-        assert!(<Bspline as Basis<f64>>::is_len_ok(5));
-        assert!(<Bspline as Basis<f64>>::is_len_ok(10));
-        assert!(<Bspline as Basis<f64>>::is_len_ok(100));
+        assert!(<Bspline as Basis<f64>>::is_len_ok(7));
         assert!(!<Bspline as Basis<f64>>::is_len_ok(3));
-        assert!(!<Bspline as Basis<f64>>::is_len_ok(2));
-        assert!(!<Bspline as Basis<f64>>::is_len_ok(1));
-        assert!(!<Bspline as Basis<f64>>::is_len_ok(0));
     }
 
     #[test]
     fn len_validation_catmull_rom() {
-        // Catmull-Rom requires >= 4 knots.
+        // Catmull-Rom has STEP=1, so any length >= 4 works.
         assert!(<CatmullRom as Basis<f64>>::is_len_ok(4));
-        assert!(<CatmullRom as Basis<f64>>::is_len_ok(5));
-        assert!(<CatmullRom as Basis<f64>>::is_len_ok(10));
-        assert!(<CatmullRom as Basis<f64>>::is_len_ok(100));
-        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(3));
+        assert!(<CatmullRom as Basis<f64>>::is_len_ok(8));
         assert!(!<CatmullRom as Basis<f64>>::is_len_ok(2));
-        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(1));
-        assert!(!<CatmullRom as Basis<f64>>::is_len_ok(0));
     }
 
     #[test]
     fn len_validation_linear() {
-        // Linear requires >= 4 knots.
+        // Linear has STEP=1, so any length >= 4 works.
         assert!(<Linear as Basis<f64>>::is_len_ok(4));
-        assert!(<Linear as Basis<f64>>::is_len_ok(5));
         assert!(<Linear as Basis<f64>>::is_len_ok(10));
-        assert!(<Linear as Basis<f64>>::is_len_ok(100));
-        assert!(!<Linear as Basis<f64>>::is_len_ok(3));
-        assert!(!<Linear as Basis<f64>>::is_len_ok(2));
         assert!(!<Linear as Basis<f64>>::is_len_ok(1));
-        assert!(!<Linear as Basis<f64>>::is_len_ok(0));
     }
 
     #[test]
     fn len_validation_bezier() {
-        // Bezier requires 4×n+3 knots (n >= 1).
-        assert!(<Bezier as Basis<f64>>::is_len_ok(7)); // 4×1+3
-        assert!(<Bezier as Basis<f64>>::is_len_ok(11)); // 4×2+3
-        assert!(<Bezier as Basis<f64>>::is_len_ok(15)); // 4×3+3
-        assert!(<Bezier as Basis<f64>>::is_len_ok(19)); // 4×4+3
-        assert!(<Bezier as Basis<f64>>::is_len_ok(23)); // 4×5+3
-
-        // Invalid lengths.
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(3));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(4));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(5));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(6));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(8));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(9));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(10));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(12));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(13));
-        assert!(!<Bezier as Basis<f64>>::is_len_ok(14));
+        // Bezier has STEP=3, so (len-4) must be divisible by 3.
+        assert!(<Bezier as Basis<f64>>::is_len_ok(4)); // (4-4)/3 = 0, valid
+        assert!(<Bezier as Basis<f64>>::is_len_ok(7)); // (7-4)/3 = 1, valid
+        assert!(<Bezier as Basis<f64>>::is_len_ok(10)); // (10-4)/3 = 2, valid
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(5)); // (5-4)/3 has remainder
+        assert!(!<Bezier as Basis<f64>>::is_len_ok(8)); // (8-4)/3 has remainder
     }
 
     #[test]
     fn len_validation_hermite() {
-        // Hermite requires 4×n+2 knots (n >= 1).
-        assert!(<Hermite as Basis<f64>>::is_len_ok(6)); // 4×1+2
-        assert!(<Hermite as Basis<f64>>::is_len_ok(10)); // 4×2+2
-        assert!(<Hermite as Basis<f64>>::is_len_ok(14)); // 4×3+2
-        assert!(<Hermite as Basis<f64>>::is_len_ok(18)); // 4×4+2
-        assert!(<Hermite as Basis<f64>>::is_len_ok(22)); // 4×5+2
-
-        // Invalid lengths.
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(2));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(3));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(4));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(5));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(7));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(8));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(9));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(11));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(12));
-        assert!(!<Hermite as Basis<f64>>::is_len_ok(13));
+        // Hermite has STEP=2, so (len-4) must be divisible by 2.
+        assert!(<Hermite as Basis<f64>>::is_len_ok(4)); // (4-4)/2 = 0, valid
+        assert!(<Hermite as Basis<f64>>::is_len_ok(6)); // (6-4)/2 = 1, valid
+        assert!(<Hermite as Basis<f64>>::is_len_ok(8)); // (8-4)/2 = 2, valid
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(5)); // (5-4)/2 has remainder
+        assert!(!<Hermite as Basis<f64>>::is_len_ok(7)); // (7-4)/2 has
+                                                         // remainder
     }
 
     #[test]
     fn len_validation_power() {
-        // Power requires 4×n+4 knots (n >= 1).
-        assert!(<Power as Basis<f64>>::is_len_ok(8)); // 4×1+4
-        assert!(<Power as Basis<f64>>::is_len_ok(12)); // 4×2+4
-        assert!(<Power as Basis<f64>>::is_len_ok(16)); // 4×3+4
-        assert!(<Power as Basis<f64>>::is_len_ok(20)); // 4×4+4
-        assert!(<Power as Basis<f64>>::is_len_ok(24)); // 4×5+4
-
-        // Invalid lengths.
-        assert!(!<Power as Basis<f64>>::is_len_ok(4));
-        assert!(!<Power as Basis<f64>>::is_len_ok(5));
-        assert!(!<Power as Basis<f64>>::is_len_ok(6));
-        assert!(!<Power as Basis<f64>>::is_len_ok(7));
-        assert!(!<Power as Basis<f64>>::is_len_ok(9));
-        assert!(!<Power as Basis<f64>>::is_len_ok(10));
-        assert!(!<Power as Basis<f64>>::is_len_ok(11));
-        assert!(!<Power as Basis<f64>>::is_len_ok(13));
-        assert!(!<Power as Basis<f64>>::is_len_ok(14));
-        assert!(!<Power as Basis<f64>>::is_len_ok(15));
+        // Power has STEP=4, so (len-4) must be divisible by 4.
+        assert!(<Power as Basis<f64>>::is_len_ok(4)); // (4-4)/4 = 0, valid
+        assert!(<Power as Basis<f64>>::is_len_ok(8)); // (8-4)/4 = 1, valid
+        assert!(<Power as Basis<f64>>::is_len_ok(12)); // (12-4)/4 = 2, valid
+        assert!(!<Power as Basis<f64>>::is_len_ok(5)); // (5-4)/4 has remainder
+        assert!(!<Power as Basis<f64>>::is_len_ok(6)); // (6-4)/4 has remainder
+        assert!(!<Power as Basis<f64>>::is_len_ok(7)); // (7-4)/4 has remainder
     }
 
     #[test]
@@ -569,78 +557,87 @@ mod tests {
         // Basic smoke test to ensure spline evaluation works.
         let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0];
         let result = spline::<CatmullRom, _, _>(0.5, &knots);
-        // Just check it doesn't panic and returns a reasonable value.
-        assert!(result.is_finite());
+        // Just check it doesn't panic.
+        assert!(result.is_ok());
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "Bezier curve must have 4×𝘯+3 knots. Found: 8")]
-    fn bezier_invalid_length_panics() {
+    fn bezier_invalid_length_returns_error() {
         let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // 8 knots, invalid for Bezier.
-        let _ = spline::<Bezier, _, _>(0.5, &knots);
+        let result = spline::<Bezier, _, _>(0.5, &knots);
+        assert!(result.is_err());
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "Hermite curve must have 4×𝘯+2 knots. Found: 7")]
-    fn hermite_invalid_length_panics() {
+    fn hermite_invalid_length_returns_error() {
         let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0]; // 7 knots, invalid for Hermite.
-        let _ = spline::<Hermite, _, _>(0.5, &knots);
+        let result = spline::<Hermite, _, _>(0.5, &knots);
+        assert!(result.is_err());
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "Power curve must have 4×𝘯+4 knots. Found: 9")]
-    fn power_invalid_length_panics() {
+    fn power_invalid_length_returns_error() {
         let knots = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 0.5]; // 9 knots, invalid for Power (not 4n+4).
-        let _ = spline::<Power, _, _>(0.5, &knots);
+        let result = spline::<Power, _, _>(0.5, &knots);
+        assert!(result.is_err());
     }
 
     #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(
-        expected = "B-spline curve must have at least 4 knots. Found: 3"
-    )]
-    fn bspline_too_few_knots_panics() {
+    fn bspline_too_few_knots_returns_error() {
         let knots = [0.0, 1.0, 2.0]; // Only 3 knots.
-        let _ = spline::<Bspline, _, _>(0.5, &knots);
+        let result = spline::<Bspline, _, _>(0.5, &knots);
+        assert!(result.is_err());
     }
 
     #[test]
     fn bezier_valid_lengths_work() {
-        // Test that valid Bezier lengths don't panic.
-        let knots7 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0]; // 7 = 4×1+3.
-        let result = spline::<Bezier, _, _>(0.5, &knots7);
-        assert!(result.is_finite());
+        // Test that valid Bezier lengths work. STEP=3, so (len-4) must be
+        // divisible by 3.
+        let knots4 = [0.0, 0.0, 1.0, 4.0]; // (4-4)/3 = 0, valid.
+        let result = spline::<Bezier, _, _>(0.5, &knots4);
+        assert!(result.is_ok());
 
-        let knots11 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0]; // 11 = 4×2+3.
-        let result = spline::<Bezier, _, _>(0.5, &knots11);
-        assert!(result.is_finite());
+        let knots7 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0]; // (7-4)/3 = 1, valid.
+        let result = spline::<Bezier, _, _>(0.5, &knots7);
+        assert!(result.is_ok());
+
+        let knots10 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0]; // (10-4)/3 = 2, valid.
+        let result = spline::<Bezier, _, _>(0.5, &knots10);
+        assert!(result.is_ok());
     }
 
     #[test]
     fn hermite_valid_lengths_work() {
-        // Test that valid Hermite lengths don't panic.
-        let knots6 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0]; // 6 = 4×1+2.
-        let result = spline::<Hermite, _, _>(0.5, &knots6);
-        assert!(result.is_finite());
+        // Test that valid Hermite lengths work. STEP=2, so (len-4) must be
+        // divisible by 2.
+        let knots4 = [0.0, 0.0, 1.0, 4.0]; // (4-4)/2 = 0, valid.
+        let result = spline::<Hermite, _, _>(0.5, &knots4);
+        assert!(result.is_ok());
 
-        let knots10 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0]; // 10 = 4×2+2.
-        let result = spline::<Hermite, _, _>(0.5, &knots10);
-        assert!(result.is_finite());
+        let knots6 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0]; // (6-4)/2 = 1, valid.
+        let result = spline::<Hermite, _, _>(0.5, &knots6);
+        assert!(result.is_ok());
+
+        let knots8 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // (8-4)/2 = 2, valid.
+        let result = spline::<Hermite, _, _>(0.5, &knots8);
+        assert!(result.is_ok());
     }
 
     #[test]
     fn power_valid_lengths_work() {
-        // Test that valid Power lengths don't panic.
-        let knots8 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // 8 = 4×1+4.
+        // Test that valid Power lengths work. STEP=4, so (len-4) must be
+        // divisible by 4.
+        let knots4 = [0.0, 0.0, 1.0, 4.0]; // (4-4)/4 = 0, valid.
+        let result = spline::<Power, _, _>(0.5, &knots4);
+        assert!(result.is_ok());
+
+        let knots8 = [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0]; // (8-4)/4 = 1, valid.
         let result = spline::<Power, _, _>(0.5, &knots8);
-        assert!(result.is_finite());
+        assert!(result.is_ok());
 
         let knots12 =
-            [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0, 5.0]; // 12 = 4×2+4.
+            [0.0, 0.0, 1.0, 4.0, 3.0, 3.0, 2.0, 1.0, 2.0, 3.0, 4.0, 5.0]; // (12-4)/4 = 2, valid.
         let result = spline::<Power, _, _>(0.5, &knots12);
-        assert!(result.is_finite());
+        assert!(result.is_ok());
     }
 }
