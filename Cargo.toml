@@ -1,6 +1,6 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
 edition = "2021"
 rust-version = "1.83"
@@ -12,6 +12,12 @@ description = "Simple uniform cubic spline evaluation and inversion."
 documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
+[features]
+default = ["monotonic_check"]
+## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
+## vector is monotonic. Disabling improves performance by ~5-10% but requires monotonic input.
+monotonic_check = []
+
 [dependencies]
 document-features = "0.2"
 lerp = "0.5"
@@ -20,8 +26,8 @@ thiserror = { version = "2", default-features = false }
 
 [dev-dependencies]
 criterion = "0.7"
-rand = "0.9"
 nalgebra = "0.34"
+rand = "0.9"
 
 [[bench]]
 name = "speed"
@@ -30,12 +36,6 @@ harness = false
 [[bench]]
 name = "inverse_optimization"
 harness = false
-
-[features]
-default = ["monotonic_check"]
-## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
-## vector is monotonic. Disabling improves performance by ~5-10% but requires monotonic input.
-monotonic_check = []
 
 [profile.bench]
 debug = true
