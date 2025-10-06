@@ -1,7 +1,6 @@
 #![no_std]
-#![cfg_attr(has_f16, feature(f16))] // FIXME: remove it when it's stablized
-#![cfg_attr(has_f128, feature(f128))] // FIXME: remove it when it's stablized
-#![feature(test)]
+#![cfg_attr(feature = "nightly_f16", feature(f16))]
+#![cfg_attr(feature = "nightly_f128", feature(f128))]
 //! Uniform cubic spline interpolation & inversion.
 //!
 //! This crate supports the following types of splines:

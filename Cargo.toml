@@ -17,6 +17,10 @@ default = ["monotonic_check"]
 ## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
 ## vector is monotonic. Disabling improves performance by ~5-10% but requires monotonic input.
 monotonic_check = []
+## Enable f16 support on nightly Rust.
+nightly_f16 = ["num-traits/nightly_f16"]
+## Enable f128 support on nightly Rust.
+nightly_f128 = ["num-traits/nightly_f128"]
 
 [dependencies]
 document-features = "0.2"
@@ -41,4 +45,4 @@ harness = false
 debug = true
 
 [patch.crates-io]
-num-traits = { git = "https://github.com/usamoi/num-traits.git", rev = "5d120a1" }
+num-traits = { git = "https://github.com/virtualritz/num-traits.git" }

@@ -36,9 +36,9 @@ pub type BSpline = Bspline;
 
 b_spline_basis!(f64);
 b_spline_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 b_spline_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 b_spline_basis!(f128);
 
 /// A *Bezier* spline basis.
@@ -48,9 +48,9 @@ pub struct Bezier;
 
 bezier_basis!(f64);
 bezier_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 bezier_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 bezier_basis!(f128);
 
 /// A *Catmull-Rom* spline basis.
@@ -60,9 +60,9 @@ pub struct CatmullRom;
 
 catmull_rom_basis!(f64);
 catmull_rom_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 catmull_rom_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 catmull_rom_basis!(f128);
 
 /// A *Hermite* spline basis.
@@ -72,9 +72,9 @@ pub struct Hermite;
 
 hermite_basis!(f64);
 hermite_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 hermite_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 hermite_basis!(f128);
 
 /// A *Linear* basis.
@@ -89,9 +89,9 @@ pub struct Linear;
 
 linear_basis!(f64);
 linear_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 linear_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 linear_basis!(f128);
 
 /// A *Power* basis.
@@ -101,7 +101,7 @@ pub struct Power;
 
 power_basis!(f64);
 power_basis!(f32);
-#[cfg(has_f16)]
+#[cfg(feature = "nightly_f16")]
 power_basis!(f16);
-#[cfg(has_f128)]
+#[cfg(feature = "nightly_f128")]
 power_basis!(f128);
