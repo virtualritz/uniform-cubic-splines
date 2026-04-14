@@ -18,7 +18,8 @@ pub trait Basis<T> {
     const STEP: usize;
     const MATRIX: [[T; 4]; 4];
     /// Returns `true` if a `knots` slice you want to feed into
-    /// [`spline()`] has the correct length for this `Basis`.
+    /// [`spline()`](crate::spline()) has the correct length for this
+    /// `Basis`.
     fn is_len_ok(len: usize) -> bool {
         // Must have at least 4 knots and (len - 4) must be divisible by STEP
         // to ensure we can calculate valid segments.

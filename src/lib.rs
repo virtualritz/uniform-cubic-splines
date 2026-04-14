@@ -97,6 +97,8 @@ pub use error::{SplineError, SplineResult};
 mod spline_trait;
 pub use spline_trait::Spline;
 
+pub mod convert;
+
 /// Options for [`spline_inverse_with()`] function.
 #[derive(Clone, Copy, Debug)]
 pub struct SplineInverseOptions<T> {

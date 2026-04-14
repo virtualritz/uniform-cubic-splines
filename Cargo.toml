@@ -1,9 +1,9 @@
 [package]
 name = "uniform-cubic-splines"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Moritz Moeller <virtualritz@gmail.com>"]
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.85"
 readme = "README.md"
 keywords = ["splines", "curves", "graphics", "inversion", "cubic"]
 categories = ["mathematics", "graphics", "multimedia", "no-std"]
@@ -13,10 +13,14 @@ documentation = "https://docs.rs/uniform-cubic-splines/"
 repository = "https://github.com/virtualritz/uniform-cubic-splines/"
 
 [features]
-default = ["monotonic_check"]
+default = ["monotonic_check", "alloc"]
 ## The `spline_inverse()`/[`spline_inverse_with()`] code will check if the knot
 ## vector is monotonic. Disabling improves performance by ~5-10% but requires monotonic input.
 monotonic_check = []
+## Enables [`convert::convert_spline()`] which returns a `Vec` of converted
+## control values. Requires a global allocator. Disable for pure `no_std` use
+## without an allocator.
+alloc = []
 ## Enable f16 support on nightly Rust. Requires patched num-traits with nightly_f16 feature.
 nightly_f16 = []
 ## Enable f128 support on nightly Rust. Requires patched num-traits with nightly_f128 feature.

@@ -89,7 +89,7 @@ macro_rules! power_basis {
 }
 
 macro_rules! _cardinal_basis {
-    ($type:ident, $t:expr) => {
+    ($type:ident, $t:expr_2021) => {
         impl Basis<$type> for CatmullRom {
             const NAME: &'static str = "Cardinal";
             const STEP: usize = 1;

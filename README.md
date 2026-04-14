@@ -51,11 +51,26 @@ let y = spline::<CatmullRom, _, _>(v, &knots).unwrap();
 assert!((y - 4.2).abs() < 1e-6);
 ```
 
+## Basis Conversion
+
+The [`convert`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/convert/index.html) module converts control values between bases without changing the underlying curve. `convert_segment()` operates on a single 4-CV window; `convert_spline()` handles full knot vectors and returns a `Vec` whose length matches the output basis's stride requirement. Any basis except `Linear` may be used as the output.
+
+```rust
+use uniform_cubic_splines::{
+    basis::{Bspline, Bezier},
+    convert::convert_spline,
+};
+
+let bspline_cvs = [0.0_f64, 1.0, 2.0, 3.0, 2.5, 1.5, 0.5];
+let bezier_cvs = convert_spline::<Bspline, Bezier, _>(&bspline_cvs);
+```
+
 ## Features
 
 - `monotonic_check` -- The
   [`spline_inverse()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse.html)/[`spline_inverse_with()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/fn.spline_inverse_with.html)
   code will check if the knot vector is monotonic (_enabled_ by default). **Performance impact**: Disabling this feature can improve `spline_inverse` performance by ~5-10% by eliminating monotonicity validation overhead. Only disable if you can guarantee monotonic input, as non-monotonic knots will produce undefined results.
+- `alloc` -- Enables [`convert::convert_spline()`](https://docs.rs/uniform-cubic-splines/latest/uniform_cubic_splines/convert/fn.convert_spline.html), which returns a `Vec` of converted control values (_enabled_ by default). Disable for pure `no_std` use without a global allocator; `convert_segment()` remains available.
 
 ## Using with Math Libraries
 
@@ -77,6 +92,7 @@ let result = spline::<CatmullRom, _, _>(0.5, &knots).unwrap();
 ```
 
 Note that vector types from math libraries need custom `Spline` implementations because:
+
 - The interpolation parameter `x` must be a scalar (f32/f64)
 - Vectors don't implement the `Float` trait
 - Component-wise interpolation requires custom logic

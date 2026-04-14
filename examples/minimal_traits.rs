@@ -3,8 +3,6 @@
 //! This demonstrates what traits are actually needed vs what we currently
 //! require.
 
-use std::ops::{Add, Mul, Sub};
-
 // What we actually need for spline_segment (the core operation)
 trait MinimalSpline: Sized + Clone {
     type Scalar: Clone;
