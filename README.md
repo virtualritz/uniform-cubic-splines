@@ -157,5 +157,3 @@ Performance for scalar types (`f32` and `f64`):
 | 500        | 2.4 ns         | 265 ns                 | 2.6 ns         | 263 ns                 |
 
 _Benchmarks taken on Ubuntu with `rustc 1.83.0-nightly` on an AMD Ryzen 7 6800H laptop._
-
-The trait-based architecture allows external math libraries to provide their own optimized implementations for vector types.
